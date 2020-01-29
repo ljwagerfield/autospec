@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+**/*.DS_Store
+
+# IntelliJ
+.idea
+*.iml
+
+# SBT
+project/project
+project/.sbtserver*
+
+# Java
+target
+*.class
+*.log
+*.jar
+
+# Custom temporary folders
+logs
+tmp
+
+# Custom generated files (that we don't want to commit)
+localhost_proxies.csv
+hosts
