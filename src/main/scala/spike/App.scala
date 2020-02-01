@@ -1,8 +1,8 @@
 package spike
 
 import spike.SchemaSymbols._
-import spike.schema.{ApplicationSchema, EndpointDefinition, EndpointId, EndpointParameter, EndpointParameterLocation}
-import spike.runtime.TestPath
+import spike.runtime.ConsoleApp
+import spike.schema._
 
 class SetController {
   private var state = List.empty[Int]
@@ -25,8 +25,6 @@ class SetController {
 //    state.contains(value)
 }
 
-// Todo 1: have the below generate 'test plans'
-// Todo 2: create something that executes 'test plans'
 object App extends App {
   val schema = ApplicationSchema(List(
     EndpointDefinition(
@@ -62,13 +60,5 @@ object App extends App {
     )
   ))
 
-  TestPath(schema).zipWithIndex.foreach { case (path, i) =>
-    println()
-    println(s"--- TEST PATH #${i + 1} ---")
-    path.endpointCalls.foreach(println)
-  }
-
-  println(
-    TestPath(schema)
-  )
+  ConsoleApp.runTests(schema)
 }
