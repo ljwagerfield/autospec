@@ -26,39 +26,51 @@ class SetController {
 }
 
 object App extends App {
-  val schema = ApplicationSchema(List(
-    EndpointDefinition(
-      EndpointId("all"),
-      "GET",
-      "/foos",
-      Nil,
-      Nil,
-      List(
-        Predicate.Equals(
-          Count(Distinct(Result)),
-          Count(Result)
-        )
+  val apiId = ApiId("api")
+  val schema = ApplicationSchema(
+    List(
+      ApiDefinition(
+        apiId,
+        "https://localhost:9000"
       )
     ),
-    EndpointDefinition(
-      EndpointId("add"),
-      "POST",
-      "/foos",
-      List(
-        EndpointParameter(
-          "value",
-          EndpointParameterLocation.Body
+    List(
+      EndpointDefinition(
+        EndpointId("all"),
+        apiId,
+        HttpMethod.Get,
+        "/foos",
+        Nil,
+        Nil,
+        List(
+          Predicate.Equals(
+            Count(Distinct(Result)),
+            Count(Result)
+          )
         )
       ),
-      Nil,
-      List(
-        Predicate.Contains(
-          Endpoint(EndpointId("all"), scala.collection.Map.empty, evaluateAfterExecution = true),
-          Parameter("value")
+      EndpointDefinition(
+        EndpointId("add"),
+        apiId,
+        HttpMethod.Post,
+        "/foos",
+        List(
+          EndpointParameter(
+            EndpointParameterName("value"),
+            EndpointParameterLocation.Body,
+            EndpointParameterSerialization.ToString("text/plain")
+          )
+        ),
+        Nil,
+        List(
+          Predicate.Contains(
+            Endpoint(EndpointId("all"), scala.collection.Map.empty, evaluateAfterExecution = true),
+            Parameter("value")
+          )
         )
       )
     )
-  ))
+  )
 
   ConsoleApp.runTests(schema)
 }
