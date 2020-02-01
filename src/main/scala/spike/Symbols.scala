@@ -1,20 +1,24 @@
 package spike
 
+import io.circe.Json
 import spike.schema.EndpointId
 
 sealed trait CommonSymbols {
   sealed trait Symbol
 
-  case class Literal(value: Any) extends Symbol
+  case class Literal(value: Json) extends Symbol
 
   case class LambdaParameter(depth: Int) extends Symbol // 0 is current lambda's param, 1 is parent, 2 is grandparent, etc. Used with things like 'Exists'
 
   // Derivatives
   case class FindOne(symbol: Symbol, predicate: Predicate) extends Symbol
   case class Map(symbol: Symbol, path: List[String]) extends Symbol
-  case class FlatMap(symbol: Symbol, path: List[String]) extends Symbol
+  case class Flatten(symbol: Symbol) extends Symbol
   case class Count(symbol: Symbol) extends Symbol
   case class Distinct(symbol: Symbol) extends Symbol
+
+  def FlatMap(symbol: Symbol, path: List[String]): Symbol =
+    Flatten(Map(symbol, path))
 
   sealed trait Predicate extends Symbol
   object Predicate {
@@ -24,7 +28,7 @@ sealed trait CommonSymbols {
     case class Not(predicate: Predicate) extends Predicate
 
     def Exists(symbol: Symbol, predicate: Predicate): Predicate =
-      Equals(Count(FindOne(symbol, predicate)), Literal(1))
+      Equals(Count(FindOne(symbol, predicate)), Literal(Json.fromInt(1)))
 
     def Contains(collection: Symbol, item: Symbol): Predicate =
       Exists(collection, Equals(item, LambdaParameter(0)))
@@ -38,5 +42,5 @@ object SchemaSymbols extends CommonSymbols {
 }
 
 object RuntimeSymbols extends CommonSymbols {
-  case class Result(endpointCallIndex: Int) extends Symbol
+  case class Result(precedingRequestDistance: Int) extends Symbol
 }
