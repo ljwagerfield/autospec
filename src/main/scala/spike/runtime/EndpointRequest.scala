@@ -1,5 +1,6 @@
 package spike.runtime
 
+import cats.implicits._
 import io.circe.Json
 import spike.RuntimeSymbols._
 import spike.schema.{EndpointId, EndpointParameterName}
@@ -9,32 +10,56 @@ case class EndpointRequest(id: EndpointId, parameterValues: scala.collection.Map
     s"${id.value}(${parameterValues.toList.map(x => s"${x._1} = '${x._2}'").mkString(", ")})"
 
   def resolveParameterValues(history: List[EndpointRequestResponse]): scala.collection.Map[EndpointParameterName, Json] =
-    parameterValues.view.mapValues(resolveSymbol(history, _)).toMap
+    parameterValues.view.mapValues(resolveSymbol(history, Nil, _)).toMap
 
-  private def resolveSymbol(history: List[EndpointRequestResponse], symbol: Symbol): Json =
+  private def resolvePredicate(history: List[EndpointRequestResponse], lambdaParameterStack: List[Json], predicate: Predicate): Boolean = {
+    val resolveSym  = resolveSymbol(history, lambdaParameterStack, _)
+    val resolvePred = resolvePredicate(history, lambdaParameterStack, _)
+    predicate match {
+      case Predicate.Equals(left, right) => resolveSym(left) === resolveSym(right)
+      case Predicate.And(left, right)    => resolvePred(left) && resolvePred(right)
+      case Predicate.Or(left, right)     => resolvePred(left) || resolvePred(right)
+      case Predicate.Not(pred)           => !resolvePred(pred)
+    }
+  }
+
+  private def resolveSymbol(history: List[EndpointRequestResponse], lambdaParameterStack: List[Json], symbol: Symbol): Json = {
+    val resolve = resolveSymbol(history, lambdaParameterStack, _)
     symbol match {
       case Literal(value)                   => value
-      case Result(precedingRequestDistance) => history.drop(precedingRequestDistance).head.response.body
-      case Map(symbol, path)                => path.foldLeft(resolveSymbol(history, symbol))(mapJson)
-      case Flatten(symbol)                  => flatten(resolveSymbol(history, symbol))
+      case LambdaParameter(distance)        => lambdaParameterStack(distance)
+      case Result(precedingRequestDistance) => history(precedingRequestDistance).response.body
+      case Map(symbol, path)                => path.foldLeft(resolve(symbol))(mapJson)
+      case Flatten(symbol)                  => flatten(resolve(symbol))
+      case FindOne(symbol, predicate)       =>
+        toVector(resolveSymbol(history, lambdaParameterStack, symbol))
+          .find(json => resolvePredicate(history, json :: lambdaParameterStack, predicate))
+          .getOrElse(Json.Null)
+      case Count(symbol)                    => Json.fromInt(toVector(resolve(symbol)).size)
+      case Distinct(symbol)                 => Json.fromValues(toVector(resolve(symbol)).distinct)
+      case predicate: Predicate             => Json.fromBoolean(resolvePredicate(history, lambdaParameterStack, predicate))
     }
+  }
 
+  // We use 'Json.Null' instead of 'None: Option[Json]' since optionality may occur _within_ JSON structures too, and
+  // we can only use 'Json.Null' there. E.g. 'Map' operations cannot change the size of an array, and since objects in
+  // arrays may be different shapes, 'Map' operations may need to yield 'Json.Null' for some elements but not others.
   private def mapJson(json: Json, key: String): Json =
     json.fold(
       Json.Null,
       _ => Json.Null,
       _ => Json.Null,
       _ => Json.Null,
-      x => Json.JArray(x.map(mapJson(_, key))),
+      x => Json.fromValues(x.map(mapJson(_, key))),
       x => x(key).getOrElse(Json.Null)
     )
 
   private def flatten(json: Json): Json =
     json
       .asArray
-      .map(x => Json.JArray(x.flatMap(toVector)))
+      .map(x => Json.fromValues(x.flatMap(toVector)))
       .getOrElse(json)
 
   private def toVector(json: Json): Vector[Json] =
-    json.asArray.getOrElse(Vector(json))
+    json.asArray.getOrElse(if (json.isNull) Vector.empty else Vector(json))
 }

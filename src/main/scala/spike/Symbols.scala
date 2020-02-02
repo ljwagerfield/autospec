@@ -8,12 +8,12 @@ sealed trait CommonSymbols {
 
   case class Literal(value: Json) extends Symbol
 
-  case class LambdaParameter(depth: Int) extends Symbol // 0 is current lambda's param, 1 is parent, 2 is grandparent, etc. Used with things like 'Exists'
+  case class LambdaParameter(distance: Int) extends Symbol // 0 is current lambda's param, 1 is parent, 2 is grandparent, etc. Used with things like 'Exists'
 
   // Derivatives
-  case class FindOne(symbol: Symbol, predicate: Predicate) extends Symbol
   case class Map(symbol: Symbol, path: List[String]) extends Symbol
   case class Flatten(symbol: Symbol) extends Symbol
+  case class FindOne(symbol: Symbol, predicate: Predicate) extends Symbol
   case class Count(symbol: Symbol) extends Symbol
   case class Distinct(symbol: Symbol) extends Symbol
 
