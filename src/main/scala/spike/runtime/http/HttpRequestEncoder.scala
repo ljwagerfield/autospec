@@ -11,7 +11,7 @@ import spike.schema.HttpMethod.{Delete, Get, Patch, Post, Put}
 
 class HttpRequestEncoder {
   def apply[F[_]](schema: ApplicationSchema, history: List[EndpointRequestResponse], request: EndpointRequest): Request[F] = {
-    val endpoint   = schema.endpoint(request.id)
+    val endpoint   = schema.endpoint(request.endpointId)
     val api        = schema.api(endpoint.apiId)
     val method     = endpoint.method match {
       case Get    => Method.GET

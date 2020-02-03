@@ -24,11 +24,13 @@ object SymbolResolver {
   }
 
   private def resolveSymbol(history: List[EndpointRequestResponse], lambdaParameterStack: List[Json], symbol: Symbol): Json = {
-    val resolve = resolveSymbol(history, lambdaParameterStack, _: Symbol)
+    val resolve    = resolveSymbol(history, lambdaParameterStack, _: Symbol)
+    val responseAt = (requestIndex: Int) => history(history.size - (requestIndex + 1)).response
     symbol match {
       case Literal(value)                   => value
       case LambdaParameter(distance)        => lambdaParameterStack(distance)
-      case Result(precedingRequestDistance) => history(precedingRequestDistance).response.body
+      case Result(requestIndex)             => responseAt(requestIndex).body
+      case StatusCode(requestIndex)         => Json.fromInt(responseAt(requestIndex).status)
       case Map(symbol, path)                => path.foldLeft(resolve(symbol))(mapJson)
       case Flatten(symbol)                  => flatten(resolve(symbol))
       case FindOne(symbol, predicate)       =>

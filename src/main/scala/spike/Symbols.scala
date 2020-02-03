@@ -42,5 +42,6 @@ object SchemaSymbols extends CommonSymbols {
 }
 
 object RuntimeSymbols extends CommonSymbols {
-  case class Result(precedingRequestDistance: Int) extends Symbol
+  case class Result(requestIndex: Int) extends Symbol
+  case class StatusCode(requestIndex: Int) extends Symbol
 }
