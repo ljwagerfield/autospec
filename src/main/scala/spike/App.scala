@@ -64,8 +64,8 @@ object App extends App {
         Nil,
         List(
           Predicate.Contains(
-            Endpoint(EndpointId("all"), scala.collection.Map.empty, evaluateAfterExecution = true),
-            Parameter("value")
+            Endpoint(EndpointId("all"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
+            Parameter(EndpointParameterName("value"))
           )
         )
       )

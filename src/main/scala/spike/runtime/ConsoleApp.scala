@@ -17,7 +17,7 @@ object ConsoleApp {
         val httpRequestExecutor = new HttpRequestExecutor(httpClient)
         val testPathGenerator   = new TestPathGenerator()
         val testPlanExecutor    = new TestPlanExecutor(httpRequestEncoder, httpRequestExecutor)
-        val testPlan            = TestPlan(schema, testPathGenerator)
+        val testPlan            = TestPlan.from(schema, testPathGenerator)
         testPlanExecutor(testPlan).map { testResults =>
           printResults(testPlan, testResults)
         }

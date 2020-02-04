@@ -1,7 +1,7 @@
 package spike
 
 import io.circe.Json
-import spike.schema.EndpointId
+import spike.schema.{EndpointId, EndpointParameterName}
 
 sealed trait CommonSymbols {
   sealed trait Symbol
@@ -36,9 +36,9 @@ sealed trait CommonSymbols {
 }
 
 object SchemaSymbols extends CommonSymbols {
-  case class Parameter(name: String) extends Symbol
+  case class Parameter(name: EndpointParameterName) extends Symbol
   case object Result extends Symbol
-  case class Endpoint(endpointId: EndpointId, parameters: scala.collection.Map[String, Symbol], evaluateAfterExecution: Boolean) extends Symbol // 'stateAfterExecution' only valid for post-conditions (is this shows the current endpoint is modifying state read by this endpoint, so we should check that endpoint is healthy too)
+  case class Endpoint(endpointId: EndpointId, parameters: scala.collection.immutable.Map[EndpointParameterName, Symbol], evaluateAfterExecution: Boolean) extends Symbol // 'stateAfterExecution' always false for pre-conditions.
 }
 
 object RuntimeSymbols extends CommonSymbols {

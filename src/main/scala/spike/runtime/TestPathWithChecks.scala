@@ -4,7 +4,7 @@ import io.circe.Json
 import spike.schema.{ApplicationSchema, ConditionId, Precondition}
 import spike.RuntimeSymbols._
 import spike.RuntimeSymbols.Predicate.{Equals, Or}
-import scala.collection.{Map => ScalaMap}
+import scala.collection.immutable.{Map => ScalaMap}
 import cats.implicits._
 
 case class TestPathWithChecks(id: TestPathId, requests: List[EndpointRequestWithChecks])
@@ -23,22 +23,27 @@ object TestPathWithChecks {
     )
 
   private def addChecksToRequest(schema: ApplicationSchema, testPath: TestPath, state: State, request: EndpointRequest): State = {
-    val requestIndex                                 = state.currentRequestIndex
-    val endpoint                                     = schema.endpoint(request.endpointId)
-    val (preconditionScope, _ :: postconditionScope) = testPath.requests.splitAt(requestIndex)
+    val requestIndex = state.currentRequestIndex
+    val endpoint     = schema.endpoint(request.endpointId)
+    val (preconditionScope, currentRequest :: postconditionScope) = testPath.requests.splitAt(requestIndex)
 
     val preconditions =
       endpoint.preconditionMap.flatMap[ConditionId, Predicate] { case (conditionId, Precondition(predicate, expectedStatus)) =>
         for {
-          success               <- SymbolConverter.convertToRuntimePredicate(preconditionScope, 0, predicate)
-          successOrExpectedError =
-          Or(
-            success,
-            Equals(
-              StatusCode(requestIndex),
-              Literal(Json.fromInt(expectedStatus))
-            )
+          success <- SymbolConverter.convertToRuntimePredicate(
+            currentRequest,
+            preconditionScope,
+            Nil,
+            predicate
           )
+          successOrExpectedError =
+            Or(
+              success,
+              Equals(
+                StatusCode(requestIndex),
+                Literal(Json.fromInt(expectedStatus))
+              )
+            )
         } yield (
           conditionId,
           successOrExpectedError
@@ -48,7 +53,12 @@ object TestPathWithChecks {
     val newPostconditions =
       endpoint.postconditionMap.flatMap[ConditionId, Predicate] { case (conditionId, predicate) =>
         for {
-          success <- SymbolConverter.convertToRuntimePredicate(postconditionScope, requestIndex + 1, predicate)
+          success <- SymbolConverter.convertToRuntimePredicate(
+            currentRequest,
+            preconditionScope,
+            postconditionScope,
+            predicate
+          )
         } yield (
           conditionId,
           success
