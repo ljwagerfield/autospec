@@ -61,6 +61,7 @@ object SymbolConverter {
         }
 
       case S.Result                           => Some(R.Result(currentRequestIndex))
+      case S.StatusCode                       => Some(R.StatusCode(currentRequestIndex))
       case S.Parameter(name)                  => Some(current.parameterValue(name))
       case S.Literal(value)                   => Some(R.Literal(value))
       case S.LambdaParameter(distance)        => Some(R.LambdaParameter(distance))

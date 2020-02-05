@@ -1,37 +1,63 @@
 package spike
 
+import cats.effect._
+import cats.implicits._
+import io.circe.Json
+import monix.eval.Task
+import monix.execution.Scheduler
+import io.circe.syntax._
+import org.http4s._
+import org.http4s.circe._
+import org.http4s.dsl.Http4sDsl
+import org.http4s.implicits._
+import org.http4s.server.Router
+import org.http4s.server.blaze.BlazeServerBuilder
 import spike.SchemaSymbols._
-import spike.runtime.ConsoleApp
+import spike.runtime.{ConsoleApp, EndpointRequest, TestPath, TestPathId}
 import spike.schema._
 
-class SetController {
+import scala.concurrent.duration._
+
+class SetController()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
   private var state = List.empty[Int]
+  implicit val timer: Timer[Task] = Task.timer(scheduler)
 
-  // GET /foos
-  def all: List[Int] =
-    state
+  val myService: HttpRoutes[Task] = HttpRoutes.of[Task] {
+    case GET -> Root / "foos" =>
+      Ok(state.asJson)
 
-  // POST /foos
-  // 42
-  def add(value: Int): Unit =
-    state = value :: state
+    case body @ POST -> Root / "foos" =>
+      for {
+        value <- body.as[String]
+        _ = println(s"'$value'")
+        _     <- Task { state = value.toInt :: state }
+        resp  <- Ok(())
+      } yield {
+        resp
+      }
+  }
 
-//  // DELETE /foos/:value
-//  def remove(value: Int): Unit =
-//    state = state.filterNot(_ == value)
-//
-//  // GET /foos/:value/exists
-//  def exists(value: Int): Boolean =
-//    state.contains(value)
+  def run(): Task[Unit] = {
+    val services = myService // <+> fooService <+> barService
+
+    val httpApp = Router("/" -> services).orNotFound
+
+    BlazeServerBuilder[Task]
+      .bindHttp(9005, "localhost")
+      .withHttpApp(httpApp)
+      .serve
+      .compile
+      .drain
+  }
 }
 
-object App extends App {
+object App extends IOApp {
   val apiId = ApiId("api")
   val schema = ApplicationSchema(
     List(
       ApiDefinition(
         apiId,
-        "https://localhost:9000"
+        "http://localhost:9005"
       )
     ),
     List(
@@ -66,11 +92,39 @@ object App extends App {
           Predicate.Contains(
             Endpoint(EndpointId("all"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
             Parameter(EndpointParameterName("value"))
+          ),
+          Predicate.Equals(
+            StatusCode, Literal(Json.fromInt(200))
           )
         )
       )
     )
   )
 
-  ConsoleApp.runTests(schema)
+  def run(args: List[String]): IO[ExitCode] = {
+    implicit val scheduler: Scheduler = Scheduler.traced
+
+    val testPath = TestPath(
+      TestPathId("example-test"),
+      List(
+        EndpointRequest(
+          EndpointId("add"),
+          scala.collection.immutable.Map(
+            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
+          )
+        ),
+        EndpointRequest(
+          EndpointId("all"),
+          scala.collection.immutable.Map.empty
+        )
+      )
+    )
+
+    Task.gather(
+      List(
+        new SetController().run(),
+        Task.sleep(1.seconds) *> new ConsoleApp().run(schema, List(testPath))
+      )
+    ).as(ExitCode.Success).to[IO]
+  }
 }

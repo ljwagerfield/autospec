@@ -4,6 +4,8 @@ version := "0.1"
 
 scalaVersion := "2.13.1"
 
+val silencerVersion = "1.4.4"
+
 scalacOptions ++= Seq(
   "-deprecation", // Emit warning and location for usages of deprecated APIs.
   "-encoding",
@@ -44,15 +46,22 @@ scalacOptions ++= Seq(
   "-Werror" // Fail the compilation if there are any warnings.
 )
 
+addCompilerPlugin("com.github.ghik" % "silencer-plugin" % silencerVersion cross CrossVersion.full)
+
+
 libraryDependencies ++= Seq(
-  "org.typelevel" %% "cats-core"                % "2.0.0",
-  "org.typelevel" %% "cats-effect"              % "2.0.0",
-  "org.typelevel" %% "alleycats-core"           % "2.0.0",
-  "io.monix"      %% "monix"                    % "3.1.0",
-  "org.http4s"    %% "http4s-dsl"               % "0.21.0-RC2",
-  "org.http4s"    %% "http4s-async-http-client" % "0.21.0-RC2",
-  "org.http4s"    %% "http4s-circe"             % "0.21.0-RC2",
-  "io.circe"      %% "circe-core"               % "0.13.0-RC1",
-  "io.circe"      %% "circe-generic"            % "0.13.0-RC1",
-  "io.circe"      %% "circe-parser"             % "0.13.0-RC1"
+  "org.typelevel"   %% "cats-core"                % "2.0.0",
+  "org.typelevel"   %% "cats-effect"              % "2.0.0",
+  "org.typelevel"   %% "alleycats-core"           % "2.0.0",
+  "io.monix"        %% "monix"                    % "3.1.0",
+  "org.http4s"      %% "http4s-dsl"               % "0.21.0-RC2",
+  "org.http4s"      %% "http4s-async-http-client" % "0.21.0-RC2",
+  "org.http4s"      %% "http4s-circe"             % "0.21.0-RC2",
+  "io.circe"        %% "circe-core"               % "0.13.0-RC1",
+  "io.circe"        %% "circe-generic"            % "0.13.0-RC1",
+  "io.circe"        %% "circe-parser"             % "0.13.0-RC1",
+  "com.github.ghik" % "silencer-lib"              % silencerVersion % Provided cross CrossVersion.full,
+
+  // Only used for the test app -- can be removed in future.
+  "org.http4s"      %% "http4s-blaze-server"      % "0.21.0-RC2"
 )

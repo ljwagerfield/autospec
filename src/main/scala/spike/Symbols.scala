@@ -38,6 +38,7 @@ sealed trait CommonSymbols {
 object SchemaSymbols extends CommonSymbols {
   case class Parameter(name: EndpointParameterName) extends Symbol
   case object Result extends Symbol
+  case object StatusCode extends Symbol
   case class Endpoint(endpointId: EndpointId, parameters: scala.collection.immutable.Map[EndpointParameterName, Symbol], evaluateAfterExecution: Boolean) extends Symbol // 'stateAfterExecution' always false for pre-conditions.
 }
 
