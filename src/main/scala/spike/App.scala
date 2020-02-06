@@ -27,14 +27,18 @@ class SetController()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
       Ok(state.asJson)
 
     case body @ POST -> Root / "foos" =>
-      for {
-        value <- body.as[String]
-        _ = println(s"'$value'")
-        _     <- Task { state = value.toInt :: state }
-        resp  <- Ok(())
-      } yield {
-        resp
+      {
+        for {
+          value <- body.as[String]
+          _     <- Task { state = (value.toInt :: state).distinct }
+          resp  <- Ok(())
+        } yield {
+          resp
+        }
+      }.onErrorRecoverWith {
+        case t => InternalServerError(t.toString)
       }
+
   }
 
   def run(): Task[Unit] = {
@@ -107,6 +111,16 @@ object App extends IOApp {
     val testPath = TestPath(
       TestPathId("example-test"),
       List(
+        EndpointRequest(
+          EndpointId("add"),
+          scala.collection.immutable.Map(
+            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
+          )
+        ),
+        EndpointRequest(
+          EndpointId("all"),
+          scala.collection.immutable.Map.empty
+        ),
         EndpointRequest(
           EndpointId("add"),
           scala.collection.immutable.Map(

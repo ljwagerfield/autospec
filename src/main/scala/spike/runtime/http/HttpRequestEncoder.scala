@@ -3,7 +3,7 @@ package spike.runtime.http
 import io.circe.Json
 import org.http4s
 import org.http4s.{Header, Headers, HttpVersion, MediaType, Method, Request, Uri}
-import org.http4s.headers.`Content-Type`
+import org.http4s.headers.{`Content-Type`, `Content-Length`}
 import org.http4s.implicits._
 import spike.runtime.{EndpointRequest, EndpointRequestResponse}
 import spike.schema.{ApplicationSchema, EndpointId, EndpointParameter, EndpointParameterLocation, EndpointParameterSerialization}
@@ -36,18 +36,19 @@ class HttpRequestEncoder {
       }
       .toMap
 
-    val body =
+    val (body, headersForBody) =
       params
         .get(EndpointParameterLocation.Body)
         .map(_.head)
         .map { case (parameter, json) =>
-          val payload     = serializeParameter(endpoint.id, parameter, json)
-          val contentType = parameterContentType(parameter)
-          val bytes       = payload.getBytes(contentType.charset.getOrElse(http4s.DefaultCharset).nioCharset)
-          val stream      = fs2.Stream.emits(bytes)
-          stream
+          val payload       = serializeParameter(endpoint.id, parameter, json)
+          val contentType   = parameterContentType(parameter)
+          val bytes         = payload.getBytes(contentType.charset.getOrElse(http4s.DefaultCharset).nioCharset)
+          val contentLength = `Content-Length`.unsafeFromLong(bytes.length.toLong)
+          val stream        = fs2.Stream.emits(bytes)
+          stream -> List(contentType, contentLength)
         }
-        .getOrElse(fs2.Stream.empty)
+        .getOrElse(fs2.Stream.empty -> Nil)
 
     val headers     = serializedParams(EndpointParameterLocation.Header).toList.map(x => Header(x._1, x._2))
     val querystring = serializedParams(EndpointParameterLocation.Querystring)
@@ -62,7 +63,7 @@ class HttpRequestEncoder {
         .unsafeFromString(s"${api.baseUrl}$path")
         .withQueryParams(querystring),
       HttpVersion.`HTTP/1.1`,
-      Headers(headers),
+      Headers(headersForBody ::: headers),
       body
     )
   }
