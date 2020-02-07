@@ -12,8 +12,8 @@ object ScalaSymbolPrinter extends SymbolPrinter {
     symbol match {
       case Literal(value)                => value.toString()
       case LambdaParameter(distance)     => if (distance === 0) "_" else symbol.toString
-      case ResponseBody(requestIndex)    => if (requestIndex === currentRequestIndex) "body" else s"bodyOfResponse($requestIndex)"
-      case StatusCode(requestIndex)      => if (requestIndex === currentRequestIndex) "status" else s"statusOfResponse($requestIndex)"
+      case ResponseBody(requestIndex)    => if (requestIndex === currentRequestIndex) "body" else s"bodyAt($requestIndex)"
+      case StatusCode(requestIndex)      => if (requestIndex === currentRequestIndex) "status" else s"statusAt($requestIndex)"
       case Map(symbol, path)             => s"${p(symbol)}['${path.toList.mkString("']['")}']"
       case Flatten(symbol)               => s"${p(symbol)}.flatten"
       case Find(symbol, predicate)       => s"${p(symbol)}.find(${p(predicate)})"

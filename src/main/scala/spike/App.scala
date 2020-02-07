@@ -28,7 +28,7 @@ class SetController()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
       {
         for {
           value <- body.as[String]
-          _     <- Task { state = (value.toInt :: state) }
+          _     <- Task { state = (value.toInt :: state).distinct }
           resp  <- Ok(())
         } yield {
           resp

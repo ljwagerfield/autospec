@@ -27,40 +27,43 @@ class ConsoleApp()(implicit scheduler: Scheduler) {
     }
 
   private def printResults(testPlan: TestPlan, testResults: Map[EndpointRequestId, FailedTestPath]): Unit = {
-    println("Tests:")
+    def color(failed: Boolean) = if (failed) Console.RED else Console.GREEN
+
+    println(s"${color(false)}Tests:")
+    println()
 
     testPlan.paths.foreach { path =>
-      println(s"  ${path.id.value}:")
+      println(s"${color(false)}  ${path.id.value}:")
       path.requests.zipWithIndex.foreach { case (EndpointRequestWithChecks(request, checks), i) =>
-        println(s"    $i: ${request.asString(printer, i)}")
-        checks.foreach { case (_, predicate) =>
-          println(s"       - ${printer.print(predicate, i)}")
+        val requestId = EndpointRequestId(path.id, i)
+        val failure   = testResults.get(requestId)
+        val failedConditions = failure.toList.flatMap(_.failures.toList).toSet
+        val isTestPathFailed = failure.nonEmpty
+
+        println(s"${color(isTestPathFailed)}    $i: ${request.asString(printer, i)}")
+        checks.foreach { case (conditionId, predicate) =>
+          val failed = failedConditions.contains(conditionId)
+          println(s"${color(failedConditions.contains(conditionId))}       ${if (failed) "✖" else "✔"} ${printer.print(predicate, i)}")
         }
       }
+
+      print(Console.RESET)
+
+      testResults.find(_._1.testPathId === path.id).foreach { case (_, failure) =>
+        println(s"${Console.RESET}    responses:")
+        failure.responses.toList.zipWithIndex.foreach { case (response, index) =>
+          println(s"      $index: $response")
+        }
+      }
+
       println()
     }
 
-    val failures     = testResults.values
     val failureCount = testResults.values.toList.foldMap(_.failures.size)
 
     if (failureCount === 0)
-      println("All tests passed.")
+      println(s"${color(false)}All tests passed.")
     else
-      println(s"Failures:")
-
-    failures.foreach { failure =>
-      println(s"  ${failure.testPathId.value}:")
-      println(s"    responses:")
-      failure.responses.toList.zipWithIndex.foreach { case (response, index) =>
-        println(s"      $index: $response")
-      }
-      println(s"    failed conditions:")
-      failure.failures.toList.zipWithIndex.foreach { case (condition, index) =>
-        println(s"      $index: $condition")
-      }
-      println()
-    }
-
-    println(s"$failureCount condition${if (failureCount === 1) "" else "s"} failed.")
+      println(s"${color(true)}Uh oh! You have $failureCount failed condition${if (failureCount === 1) "" else "s"}.")
   }
 }
