@@ -34,6 +34,11 @@ sealed trait CommonSymbols {
     def Contains(collection: Symbol, item: Symbol): Predicate =
       Exists(collection, Equals(LambdaParameter(0), item))
   }
+
+  object Literal {
+    def apply(value: Int): Literal =
+      Literal(Json.fromInt(value))
+  }
 }
 
 object SchemaSymbols extends CommonSymbols {

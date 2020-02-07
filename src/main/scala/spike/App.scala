@@ -100,7 +100,7 @@ object App extends IOApp {
             Parameter(EndpointParameterName("value"))
           ),
           Predicate.Equals(
-            StatusCode, Literal(Json.fromInt(200))
+            StatusCode, Literal(200)
           )
         )
       )
@@ -127,6 +127,12 @@ object App extends IOApp {
           EndpointId("add"),
           scala.collection.immutable.Map(
             EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
+          )
+        ),
+        EndpointRequest(
+          EndpointId("add"),
+          scala.collection.immutable.Map(
+            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(52))
           )
         ),
         EndpointRequest(

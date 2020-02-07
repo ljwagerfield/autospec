@@ -62,6 +62,8 @@ libraryDependencies ++= Seq(
   "io.circe"        %% "circe-parser"             % "0.13.0-RC1",
   "com.github.ghik" %  "silencer-lib"             % silencerVersion % Provided cross CrossVersion.full,
 
+  "org.scalatest"   %% "scalatest"                % "3.1.0" % Test,
+
   // Only used for the test app -- can be removed in future.
   "ch.qos.logback"  % "logback-classic"           % "1.2.3",
   "org.http4s"      %% "http4s-blaze-server"      % "0.21.0-RC2"
