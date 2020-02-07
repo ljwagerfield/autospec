@@ -90,7 +90,7 @@ object TestPathWithChecks {
   private def maxRequestIndex(symbol: Symbol): Option[RequestIndex] =
     symbol match {
       // Leafs: Request Index
-      case Result(requestIndex)          => Some(requestIndex)
+      case ResponseBody(requestIndex)          => Some(requestIndex)
       case StatusCode(requestIndex)      => Some(requestIndex)
 
       // Leafs: N/A
@@ -100,7 +100,7 @@ object TestPathWithChecks {
       // Recursive Data Structures
       case Map(symbol, _)                => maxRequestIndex(symbol)
       case Flatten(symbol)               => maxRequestIndex(symbol)
-      case FindOne(symbol, predicate)    => max(maxRequestIndex(symbol), maxRequestIndex(predicate))
+      case Find(symbol, predicate)    => max(maxRequestIndex(symbol), maxRequestIndex(predicate))
       case Count(symbol)                 => maxRequestIndex(symbol)
       case Distinct(symbol)              => maxRequestIndex(symbol)
       case Predicate.Equals(left, right) => max(maxRequestIndex(left), maxRequestIndex(right))

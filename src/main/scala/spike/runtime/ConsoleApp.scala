@@ -8,6 +8,8 @@ import spike.runtime.http.{HttpRequestEncoder, HttpRequestExecutor}
 import spike.schema.ApplicationSchema
 
 class ConsoleApp()(implicit scheduler: Scheduler) {
+  private val printer: SymbolPrinter = ScalaSymbolPrinter
+
   def run(schema: ApplicationSchema): Task[Unit] =
     run(TestPlan.from(schema, new TestPathGenerator()))
 
@@ -25,12 +27,15 @@ class ConsoleApp()(implicit scheduler: Scheduler) {
     }
 
   private def printResults(testPlan: TestPlan, testResults: Map[EndpointRequestId, FailedTestPath]): Unit = {
-    println(s"TESTS (${testPlan.paths.size})")
+    println("Tests:")
 
     testPlan.paths.foreach { path =>
-      println(s"${path.id.value}:")
-      path.requests.zipWithIndex.foreach { case (request, i) =>
-        println(s"  | $i | $request")
+      println(s"  ${path.id.value}:")
+      path.requests.zipWithIndex.foreach { case (EndpointRequestWithChecks(request, checks), i) =>
+        println(s"    $i: ${request.asString(printer, i)}")
+        checks.foreach { case (_, predicate) =>
+          println(s"       - ${printer.print(predicate, i)}")
+        }
       }
       println()
     }
@@ -39,21 +44,23 @@ class ConsoleApp()(implicit scheduler: Scheduler) {
     val failureCount = testResults.values.toList.foldMap(_.failures.size)
 
     if (failureCount === 0)
-      println("SUCCESS")
+      println("All tests passed.")
     else
-      println(s"FAILURES ($failureCount)")
+      println(s"Failures:")
 
     failures.foreach { failure =>
-      println(s"${failure.testPathId.value} (stopped at request #${failure.lastRequestIndex}):")
-      println(s"  failed conditions:")
-      failure.failures.toList.zipWithIndex.foreach { case (additionalConditions, index) =>
-        println(s"  | $index | $additionalConditions")
-      }
-      println(s"  responses:")
+      println(s"  ${failure.testPathId.value}:")
+      println(s"    responses:")
       failure.responses.toList.zipWithIndex.foreach { case (response, index) =>
-        println(s"  | $index | $response")
+        println(s"      $index: $response")
+      }
+      println(s"    failed conditions:")
+      failure.failures.toList.zipWithIndex.foreach { case (condition, index) =>
+        println(s"      $index: $condition")
       }
       println()
     }
+
+    println(s"$failureCount condition${if (failureCount === 1) "" else "s"} failed.")
   }
 }

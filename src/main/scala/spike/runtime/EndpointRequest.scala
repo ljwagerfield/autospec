@@ -6,8 +6,8 @@ import spike.RuntimeSymbols._
 import spike.schema.{EndpointId, EndpointParameterName}
 
 case class EndpointRequest(endpointId: EndpointId, parameterValues: scala.collection.immutable.Map[EndpointParameterName, Symbol]) {
-  override def toString: String =
-    s"${endpointId.value}(${parameterValues.toList.map(x => s"${x._1.value} = ${x._2}").mkString(", ")})"
+  def asString(printer: SymbolPrinter, currentRequestIndex: Int): String =
+    s"${endpointId.value}(${parameterValues.toList.map(x => s"${x._1.value} = ${printer.print(x._2, currentRequestIndex)}").mkString(", ")})"
 
   def resolveParameterValues(history: List[EndpointRequestResponse]): scala.collection.Map[EndpointParameterName, Json] =
     parameterValues.view.mapValues(SymbolResolver.resolveSymbol(history, _)).toMap

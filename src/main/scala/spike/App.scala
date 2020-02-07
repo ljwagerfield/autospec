@@ -16,8 +16,6 @@ import spike.SchemaSymbols._
 import spike.runtime.{ConsoleApp, EndpointRequest, TestPath, TestPathId}
 import spike.schema._
 
-import scala.concurrent.duration._
-
 class SetController()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
   private var state = List.empty[Int]
   implicit val timer: Timer[Task] = Task.timer(scheduler)
@@ -30,7 +28,7 @@ class SetController()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
       {
         for {
           value <- body.as[String]
-          _     <- Task { state = (value.toInt :: state).distinct }
+          _     <- Task { state = (value.toInt :: state) }
           resp  <- Ok(())
         } yield {
           resp
@@ -66,7 +64,7 @@ object App extends IOApp {
     ),
     List(
       EndpointDefinition(
-        EndpointId("all"),
+        EndpointId("list"),
         apiId,
         HttpMethod.Get,
         "/foos",
@@ -74,8 +72,12 @@ object App extends IOApp {
         Nil,
         List(
           Predicate.Equals(
-            Count(Distinct(Result)),
-            Count(Result)
+            Count(Distinct(ResponseBody)),
+            Count(ResponseBody)
+          ),
+          Predicate.Equals(
+            Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
+            ResponseBody
           )
         )
       ),
@@ -94,7 +96,7 @@ object App extends IOApp {
         Nil,
         List(
           Predicate.Contains(
-            Endpoint(EndpointId("all"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
+            Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
             Parameter(EndpointParameterName("value"))
           ),
           Predicate.Equals(
@@ -118,7 +120,7 @@ object App extends IOApp {
           )
         ),
         EndpointRequest(
-          EndpointId("all"),
+          EndpointId("list"),
           scala.collection.immutable.Map.empty
         ),
         EndpointRequest(
@@ -128,7 +130,7 @@ object App extends IOApp {
           )
         ),
         EndpointRequest(
-          EndpointId("all"),
+          EndpointId("list"),
           scala.collection.immutable.Map.empty
         )
       )
@@ -137,7 +139,7 @@ object App extends IOApp {
     Task.gather(
       List(
         new SetController().run(),
-        Task.sleep(1.seconds) *> new ConsoleApp().run(schema, List(testPath))
+        new ConsoleApp().run(schema, List(testPath))
       )
     ).as(ExitCode.Success).to[IO]
   }

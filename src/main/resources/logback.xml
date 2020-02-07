@@ -1,0 +1,21 @@
+<!-- https://www.playframework.com/documentation/latest/SettingsLogger -->
+<configuration>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%highlight([%level]) %logger - %message%n%xException{10}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="ASYNCSTDOUT" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="STDOUT" />
+    </appender>
+
+    <logger name="org.http4s.blaze.channel.nio1" level="WARN" />
+    <logger name="org.http4s.server.blaze" level="WARN" />
+
+    <root level="INFO">
+        <appender-ref ref="ASYNCSTDOUT" />
+    </root>
+
+</configuration>

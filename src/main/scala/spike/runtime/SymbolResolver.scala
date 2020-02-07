@@ -1,6 +1,6 @@
 package spike.runtime
 
-import spike.RuntimeSymbols.Result
+import spike.RuntimeSymbols.ResponseBody
 import cats.implicits._
 import io.circe.Json
 import spike.RuntimeSymbols._
@@ -29,11 +29,11 @@ object SymbolResolver {
     symbol match {
       case Literal(value)                   => value
       case LambdaParameter(distance)        => lambdaParameterStack(distance)
-      case Result(requestIndex)             => responseAt(requestIndex).body
+      case ResponseBody(requestIndex)             => responseAt(requestIndex).body
       case StatusCode(requestIndex)         => Json.fromInt(responseAt(requestIndex).status)
       case Map(symbol, path)                => path.foldLeft(resolve(symbol))(mapJson)
       case Flatten(symbol)                  => flatten(resolve(symbol))
-      case FindOne(symbol, predicate)       =>
+      case Find(symbol, predicate)       =>
         toVector(resolveSymbol(history, lambdaParameterStack, symbol))
           .find(json => resolvePredicate(history, json :: lambdaParameterStack, predicate))
           .getOrElse(Json.Null)

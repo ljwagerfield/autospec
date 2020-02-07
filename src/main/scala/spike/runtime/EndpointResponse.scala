@@ -10,11 +10,13 @@ import io.circe.Json
  */
 case class EndpointResponse(status: Int, body: Json, bodyRaw: String) {
   override def toString: String =
-    s"[$status] ${if (body.isNull) s"""'${truncate(bodyRaw.replaceAllLiterally("\n", "\\n"))}'""" else body.noSpaces}"
+    s"($status) ${if (body.isNull) truncate(bodyRaw.replaceAllLiterally("\n", "\\n")) else body.noSpaces}"
 
   private def truncate(value: String): String =
-    if (value.length > 100)
-      value.substring(0, 100) + "..."
+    if (value.length > 150)
+      s"'${value.substring(0, 150)}...'"
+    else if (value.isEmpty)
+      "<no body>"
     else
-      value
+      s"'$value'"
 }

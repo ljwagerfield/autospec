@@ -57,17 +57,17 @@ object SymbolConverter {
             case (request, index) if request === targetRequest => index + indexOffset
           }
         } yield {
-          R.Result(targetRequestIndex)
+          R.ResponseBody(targetRequestIndex)
         }
 
-      case S.Result                           => Some(R.Result(currentRequestIndex))
+      case S.ResponseBody                           => Some(R.ResponseBody(currentRequestIndex))
       case S.StatusCode                       => Some(R.StatusCode(currentRequestIndex))
       case S.Parameter(name)                  => Some(current.parameterValue(name))
       case S.Literal(value)                   => Some(R.Literal(value))
       case S.LambdaParameter(distance)        => Some(R.LambdaParameter(distance))
       case S.Map(symbol, path)                => resolveSymbol(symbol).map(R.Map(_, path))
       case S.Flatten(symbol)                  => resolveSymbol(symbol).map(R.Flatten)
-      case S.FindOne(symbol, predicate)       => (resolveSymbol(symbol), resolvePredicate(predicate)).mapN(R.FindOne)
+      case S.Find(symbol, predicate)       => (resolveSymbol(symbol), resolvePredicate(predicate)).mapN(R.Find)
       case S.Count(symbol)                    => resolveSymbol(symbol).map(R.Count)
       case S.Distinct(symbol)                 => resolveSymbol(symbol).map(R.Distinct)
       case predicate: S.Predicate             => resolvePredicate(predicate)
