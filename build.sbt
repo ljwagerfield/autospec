@@ -83,11 +83,12 @@ lazy val commonScalaSettings = commonSettings ++: Seq(
 // Projects
 // ---------------
 
-lazy val core = (project in file("core"))
-  .dependsOn(coreMacros)
+lazy val logic = (project in file("logic"))
+  .dependsOn(macros)
+  .dependsOn(model)
   .settings(commonScalaSettings: _*)
   .settings(
-    name                 := "spike-core",
+    name                 := "spike-logic",
     libraryDependencies ++= Seq(
       "org.typelevel"   %% "cats-core"                % catsVersion,
       "org.typelevel"   %% "cats-effect"              % catsVersion,
@@ -103,14 +104,24 @@ lazy val core = (project in file("core"))
     )
   )
 
-lazy val coreMacros = (project in file("core-macros"))
+lazy val macros = (project in file("macros"))
+  .dependsOn(model)
   .settings(commonScalaSettings: _*)
   .settings(
-    name                 := "spike-core-macros"
+    name                 := "spike-macros"
+  )
+
+lazy val model = (project in file("model"))
+  .settings(commonScalaSettings: _*)
+  .settings(
+    name                 := "spike-model",
+    libraryDependencies ++= Seq(
+      "org.typelevel"   %% "cats-core"                % catsVersion
+    )
   )
 
 lazy val demo = (project in file("demo"))
-  .dependsOn(core)
+  .dependsOn(logic)
   .settings(commonScalaSettings: _*)
   .settings(
     name                 := "spike-demo",
