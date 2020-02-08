@@ -1,17 +1,18 @@
-package spike
+package spike.demo
 
 import cats.effect._
 import cats.implicits._
 import io.circe.Json
+import io.circe.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler
-import io.circe.syntax._
 import org.http4s._
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
+import spike.RuntimeSymbols
 import spike.SchemaSymbols._
 import spike.runtime.{ConsoleApp, EndpointRequest, TestPath, TestPathId}
 import spike.schema._
