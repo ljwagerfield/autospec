@@ -6,7 +6,7 @@ import cats.implicits._
 import spike.runtime.http.{HttpRequestEncoder, HttpRequestExecutor}
 
 class TestPlanExecutor(httpRequestEncoder: HttpRequestEncoder, httpRequestExecutor: HttpRequestExecutor) {
-  def apply(testPlan: TestPlan): Task[Map[EndpointRequestId, FailedTestPath]] =
+  def execute(testPlan: TestPlan): Task[Map[EndpointRequestId, FailedTestPath]] =
     Task.wander(testPlan.paths) { path =>
       path.requests.zipWithIndex.foldM(List.empty[EndpointRequestResponse]) { (history, current) =>
         val (r, requestIndex) = current
@@ -14,7 +14,8 @@ class TestPlanExecutor(httpRequestEncoder: HttpRequestEncoder, httpRequestExecut
         val requestId         = EndpointRequestId(path.id, requestIndex)
         EitherT(
           httpRequestExecutor(httpRequest).map { response =>
-            r.validateResponse(history, response)
+            ResponseValidator
+              .validateResponse(history, r, response)
               .leftMap(conditions => requestId -> FailedTestPath(requestId, conditions, NonEmptyList(response, history.map(_.response)).reverse))
               .map(_ :: history)
           }

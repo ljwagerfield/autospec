@@ -116,7 +116,8 @@ lazy val model = (project in file("model"))
   .settings(
     name                 := "spike-model",
     libraryDependencies ++= Seq(
-      "org.typelevel"   %% "cats-core"                % catsVersion
+      "org.typelevel"   %% "cats-core"                % catsVersion,
+      "io.circe"        %% "circe-core"               % circeVersion
     )
   )
 

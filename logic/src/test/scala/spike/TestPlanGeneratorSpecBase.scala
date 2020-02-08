@@ -2,11 +2,11 @@ package spike
 
 import cats.data.NonEmptyList
 import org.scalactic.source
-import spike.runtime.{EndpointRequest, EndpointRequestId, ScalaSymbolPrinter, TestPath, TestPathId, TestPlan}
-import spike.schema.ApplicationSchema
 import spike.RuntimeSymbols._
+import spike.runtime._
+import spike.schema.ApplicationSchema
 
-abstract class TestPlanSpecBase extends BaseSpec {
+abstract class TestPlanGeneratorSpecBase extends BaseSpec {
   def checks(expected: Predicate*)(actual: (EndpointRequestId, EndpointRequest, Set[Predicate]))(implicit pos: source.Position): Unit = {
     val (requestId, request, actualConditions) = actual
     val expectedConditions = expected.toSet
@@ -17,7 +17,7 @@ abstract class TestPlanSpecBase extends BaseSpec {
       val analysis   = new StringBuilder()
 
       analysis.append(s"Request:       #${requestId.requestIndex}\n")
-      analysis.append(s"Signature:     ${request.asString(ScalaSymbolPrinter, requestId.requestIndex)}\n")
+      analysis.append(s"Signature:     ${ScalaSymbolPrinter.print(request, requestId.requestIndex)}\n")
 
       NonEmptyList.fromList(unexpected.toList).foreach { unexpected =>
         analysis.append(s"Not in Spec:   ${unexpected.head}\n")
@@ -55,8 +55,10 @@ abstract class TestPlanSpecBase extends BaseSpec {
         requests.toList.map(_._1)
       )
 
+    val testPlanGenerator = new TestPlanGenerator()
+
     val testPlan =
-      TestPlan.from(schema, List(testPath))
+      testPlanGenerator.generate(schema, List(testPath))
 
     val requestsWithChecks =
       testPlan.paths.flatMap(_.requests)

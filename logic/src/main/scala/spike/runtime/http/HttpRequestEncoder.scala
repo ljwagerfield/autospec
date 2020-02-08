@@ -3,9 +3,9 @@ package spike.runtime.http
 import io.circe.Json
 import org.http4s
 import org.http4s.{Header, Headers, HttpVersion, MediaType, Method, Request, Uri}
-import org.http4s.headers.{`Content-Type`, `Content-Length`}
+import org.http4s.headers.{`Content-Length`, `Content-Type`}
 import org.http4s.implicits._
-import spike.runtime.{EndpointRequest, EndpointRequestResponse}
+import spike.runtime.{EndpointRequest, EndpointRequestResponse, SymbolResolver}
 import spike.schema.{ApplicationSchema, EndpointId, EndpointParameter, EndpointParameterLocation, EndpointParameterSerialization}
 import spike.schema.HttpMethod.{Delete, Get, Patch, Post, Put}
 
@@ -22,7 +22,9 @@ class HttpRequestEncoder {
     }
     val params =
       request
-        .resolveParameterValues(history)
+        .parameterValues
+        .view
+        .mapValues(SymbolResolver.resolveSymbol(history, _))
         .toList
         .map { case (name, json) => endpoint.parameter(name) -> json }
         .groupBy { case (parameter, _) => parameter.location }

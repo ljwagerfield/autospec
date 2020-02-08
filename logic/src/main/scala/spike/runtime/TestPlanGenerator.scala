@@ -7,13 +7,17 @@ import spike.RuntimeSymbols.Predicate._
 import scala.collection.immutable.{Map => ScalaMap}
 import cats.implicits._
 
-case class TestPathWithChecks(id: TestPathId, requests: List[EndpointRequestWithChecks])
-
-object TestPathWithChecks {
+class TestPlanGenerator() {
   private type RequestIndex            = Int
   private type PostconditionsByRequest = ScalaMap[RequestIndex, ScalaMap[ConditionId, Predicate]]
 
-  def apply(schema: ApplicationSchema, testPath: TestPath): TestPathWithChecks =
+  def generate(schema: ApplicationSchema, paths: List[TestPath]): TestPlan =
+    TestPlan(
+      schema,
+      paths.map(addChecksToTestPath(schema, _))
+    )
+
+  private def addChecksToTestPath(schema: ApplicationSchema, testPath: TestPath): TestPathWithChecks =
     TestPathWithChecks(
       testPath.id,
       testPath
@@ -37,13 +41,13 @@ object TestPathWithChecks {
             predicate
           )
           successOrExpectedError =
-            Or(
-              success,
-              Equals(
-                StatusCode(requestIndex),
-                Literal(Json.fromInt(expectedStatus))
-              )
+          Or(
+            success,
+            Equals(
+              StatusCode(requestIndex),
+              Literal(Json.fromInt(expectedStatus))
             )
+          )
         } yield (
           conditionId,
           successOrExpectedError
@@ -64,12 +68,12 @@ object TestPathWithChecks {
           success
         )
       }
-      .groupBy { case (_, predicate) =>
-        // Associate postconditions with the last request they reference internally (if any), so the condition can be
-        // be checked after that endpoint is executed (it cannot be checked before). If no endpoints are referenced,
-        // then check the postcondition immediately after the current request (i.e. 'getOrElse(requestIndex)').
-        maxRequestIndex(predicate).getOrElse(requestIndex)
-      }
+        .groupBy { case (_, predicate) =>
+          // Associate postconditions with the last request they reference internally (if any), so the condition can be
+          // be checked after that endpoint is executed (it cannot be checked before). If no endpoints are referenced,
+          // then check the postcondition immediately after the current request (i.e. 'getOrElse(requestIndex)').
+          maxRequestIndex(predicate).getOrElse(requestIndex)
+        }
 
     val mergedPostconditions   = mergePostconditions(state.deferredPostconditions, newPostconditions)
     val ownPostconditions      = mergedPostconditions.getOrElse(requestIndex, ScalaMap.empty)

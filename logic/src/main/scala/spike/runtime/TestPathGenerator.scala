@@ -3,7 +3,7 @@ package spike.runtime
 import spike.schema.ApplicationSchema
 
 class TestPathGenerator {
-  def apply(schema: ApplicationSchema): List[TestPath] = {
+  def generate(schema: ApplicationSchema): List[TestPath] = {
     // Todo: this is the most complex part of the code. We need to devise meaningful paths through the system.
     // Note: we don't actually calculate any checks here: that's done later. This method is all about generating a
     // _path_ that when executed, is likely to highlight constraint violations. The actual constraint checks are

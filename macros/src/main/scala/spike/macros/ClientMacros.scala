@@ -1,13 +1,13 @@
 package spike.macros
 
+import spike.runtime.EndpointRequest
+
 import scala.reflect.macros.blackbox
 
 object ClientMacros {
-  // Todo: remove 'A' by putting all model types into 'model' project, and then having 'macros' reference 'model'.
-  // This 'A' can only be 'EndpointRequest'
-  def endpointRequest[A](): A = macro endpointRequestImpl[A]
+  def endpointRequest(): EndpointRequest = macro endpointRequestImpl
 
-  def endpointRequestImpl[A](c: blackbox.Context)(): c.Expr[A] = {
+  def endpointRequestImpl(c: blackbox.Context)(): c.Expr[EndpointRequest] = {
     import c.universe._
     val enclosingMethod = c.internal.enclosingOwner match {
       case m: MethodSymbol => m

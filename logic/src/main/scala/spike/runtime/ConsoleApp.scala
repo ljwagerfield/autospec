@@ -8,20 +8,22 @@ import spike.runtime.http.{HttpRequestEncoder, HttpRequestExecutor}
 import spike.schema.ApplicationSchema
 
 class ConsoleApp()(implicit scheduler: Scheduler) {
-  private val printer: SymbolPrinter = ScalaSymbolPrinter
+  private val printer: SymbolPrinter               = ScalaSymbolPrinter
+  private val testPathGenerator: TestPathGenerator = new TestPathGenerator()
+  private val testPlanGenerator: TestPlanGenerator = new TestPlanGenerator()
 
   def run(schema: ApplicationSchema): Task[Unit] =
-    run(TestPlan.from(schema, new TestPathGenerator()))
+    run(testPlanGenerator.generate(schema, testPathGenerator.generate(schema)))
 
   def run(schema: ApplicationSchema, paths: List[TestPath]): Task[Unit] =
-    run(TestPlan.from(schema, paths))
+    run(testPlanGenerator.generate(schema, paths))
 
   private def run(testPlan: TestPlan): Task[Unit] =
     AsyncHttpClient.resource[Task]().use { httpClient =>
       val httpRequestEncoder  = new HttpRequestEncoder()
       val httpRequestExecutor = new HttpRequestExecutor(httpClient)
       val testPlanExecutor    = new TestPlanExecutor(httpRequestEncoder, httpRequestExecutor)
-      testPlanExecutor(testPlan).map { testResults =>
+      testPlanExecutor.execute(testPlan).map { testResults =>
         printResults(testPlan, testResults)
       }
     }
@@ -40,7 +42,7 @@ class ConsoleApp()(implicit scheduler: Scheduler) {
         val failedConditions = failure.toList.flatMap(_.failures.toList).toSet
         val isTestPathFailed = failure.nonEmpty
 
-        println(s"${color(isTestPathFailed)}    $i: ${request.asString(printer, i)}")
+        println(s"${color(isTestPathFailed)}    $i: ${printer.print(request, i)}")
         checks.foreach { case (conditionId, predicate) =>
           val failed = failedConditions.contains(conditionId)
           println(s"${color(failedConditions.contains(conditionId))}       ${if (failed) "✖" else "✔"} ${printer.print(predicate, i)}")

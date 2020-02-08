@@ -114,9 +114,9 @@ object SetPairApi {
   }
   object Client extends SetPairApi[EndpointRequest] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-    def addA(value: Int) = ClientMacros.endpointRequest[EndpointRequest]()
-    def addB(value: Int) = ClientMacros.endpointRequest[EndpointRequest]()
-    def listA()          = ClientMacros.endpointRequest[EndpointRequest]()
-    def listB()          = ClientMacros.endpointRequest[EndpointRequest]()
+    def addA(value: Int) = ClientMacros.endpointRequest()
+    def addB(value: Int) = ClientMacros.endpointRequest()
+    def listA()          = ClientMacros.endpointRequest()
+    def listB()          = ClientMacros.endpointRequest()
   }
 }

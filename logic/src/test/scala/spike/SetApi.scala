@@ -59,7 +59,7 @@ object SetApi {
   }
   object Client extends SetApi[EndpointRequest] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-    def add(value: Int) = ClientMacros.endpointRequest[EndpointRequest]()
-    def list()          = ClientMacros.endpointRequest[EndpointRequest]()
+    def add(value: Int) = ClientMacros.endpointRequest()
+    def list()          = ClientMacros.endpointRequest()
   }
 }
