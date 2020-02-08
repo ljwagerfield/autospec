@@ -3,7 +3,7 @@ package spike.runtime
 import io.circe.Json
 import spike.schema.{ApplicationSchema, ConditionId, Precondition}
 import spike.RuntimeSymbols._
-import spike.RuntimeSymbols.Predicate.{Equals, Or}
+import spike.RuntimeSymbols.Predicate._
 import scala.collection.immutable.{Map => ScalaMap}
 import cats.implicits._
 
@@ -90,23 +90,26 @@ object TestPathWithChecks {
   private def maxRequestIndex(symbol: Symbol): Option[RequestIndex] =
     symbol match {
       // Leafs: Request Index
-      case ResponseBody(requestIndex)          => Some(requestIndex)
-      case StatusCode(requestIndex)      => Some(requestIndex)
+      case ResponseBody(requestIndex) => Some(requestIndex)
+      case StatusCode(requestIndex)   => Some(requestIndex)
 
       // Leafs: N/A
-      case Literal(_)                    => None
-      case LambdaParameter(_)            => None
+      case Literal(_)                 => None
+      case LambdaParameter(_)         => None
 
       // Recursive Data Structures
-      case Map(symbol, _)                => maxRequestIndex(symbol)
-      case Flatten(symbol)               => maxRequestIndex(symbol)
+      case Map(symbol, _)             => maxRequestIndex(symbol)
+      case FlatMap(symbol, _)         => maxRequestIndex(symbol)
+      case Flatten(symbol)            => maxRequestIndex(symbol)
       case Find(symbol, predicate)    => max(maxRequestIndex(symbol), maxRequestIndex(predicate))
-      case Count(symbol)                 => maxRequestIndex(symbol)
-      case Distinct(symbol)              => maxRequestIndex(symbol)
-      case Predicate.Equals(left, right) => max(maxRequestIndex(left), maxRequestIndex(right))
-      case Predicate.And(left, right)    => max(maxRequestIndex(left), maxRequestIndex(right))
-      case Predicate.Or(left, right)     => max(maxRequestIndex(left), maxRequestIndex(right))
-      case Predicate.Not(pred)           => maxRequestIndex(pred)
+      case Count(symbol)              => maxRequestIndex(symbol)
+      case Distinct(symbol)           => maxRequestIndex(symbol)
+      case Equals(left, right)        => max(maxRequestIndex(left), maxRequestIndex(right))
+      case And(left, right)           => max(maxRequestIndex(left), maxRequestIndex(right))
+      case Or(left, right)            => max(maxRequestIndex(left), maxRequestIndex(right))
+      case Not(predicate)             => maxRequestIndex(predicate)
+      case Exists(symbol, predicate)  => max(maxRequestIndex(symbol), maxRequestIndex(predicate))
+      case Contains(collection, item) => max(maxRequestIndex(collection), maxRequestIndex(item))
     }
 
   private def max(a: Option[RequestIndex], b: Option[RequestIndex]): Option[RequestIndex] =

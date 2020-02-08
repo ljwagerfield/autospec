@@ -4,6 +4,7 @@ import spike.RuntimeSymbols.ResponseBody
 import cats.implicits._
 import io.circe.Json
 import spike.RuntimeSymbols._
+import spike.RuntimeSymbols.Predicate._
 
 object SymbolResolver {
   def resolveSymbol(history: List[EndpointRequestResponse], symbol: Symbol): Json =
@@ -16,10 +17,12 @@ object SymbolResolver {
     val resolveSym  = resolveSymbol(history, lambdaParameterStack, _: Symbol)
     val resolvePred = resolvePredicate(history, lambdaParameterStack, _: Predicate)
     predicate match {
-      case Predicate.Equals(left, right) => resolveSym(left) === resolveSym(right)
-      case Predicate.And(left, right)    => resolvePred(left) && resolvePred(right)
-      case Predicate.Or(left, right)     => resolvePred(left) || resolvePred(right)
-      case Predicate.Not(pred)           => !resolvePred(pred)
+      case Equals(left, right)        => resolveSym(left) === resolveSym(right)
+      case And(left, right)           => resolvePred(left) && resolvePred(right)
+      case Or(left, right)            => resolvePred(left) || resolvePred(right)
+      case Not(pred)                  => !resolvePred(pred)
+      case Exists(symbol, pred)       => toVector(resolveSym(symbol)).exists(json => resolvePredicate(history, json :: lambdaParameterStack, pred))
+      case Contains(collection, item) => toVector(resolveSym(collection)).contains_(resolveSym(item))
     }
   }
 
@@ -29,12 +32,13 @@ object SymbolResolver {
     symbol match {
       case Literal(value)                   => value
       case LambdaParameter(distance)        => lambdaParameterStack(distance)
-      case ResponseBody(requestIndex)             => responseAt(requestIndex).body
+      case ResponseBody(requestIndex)       => responseAt(requestIndex).body
       case StatusCode(requestIndex)         => Json.fromInt(responseAt(requestIndex).status)
       case Map(symbol, path)                => path.foldLeft(resolve(symbol))(mapJson)
+      case FlatMap(symbol, path)            => resolve(Flatten(Map(symbol, path)))
       case Flatten(symbol)                  => flatten(resolve(symbol))
-      case Find(symbol, predicate)       =>
-        toVector(resolveSymbol(history, lambdaParameterStack, symbol))
+      case Find(symbol, predicate)          =>
+        toVector(resolve(symbol))
           .find(json => resolvePredicate(history, json :: lambdaParameterStack, predicate))
           .getOrElse(Json.Null)
       case Count(symbol)                    => Json.fromInt(toVector(resolve(symbol)).size)
