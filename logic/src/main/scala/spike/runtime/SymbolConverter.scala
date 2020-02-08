@@ -73,6 +73,9 @@ object SymbolConverter {
       case S.Find(symbol, predicate)   => (resolveSymbol(symbol), resolvePredicate(predicate)).mapN(R.Find)
       case S.Count(symbol)             => resolveSymbol(symbol).map(R.Count)
       case S.Distinct(symbol)          => resolveSymbol(symbol).map(R.Distinct)
+      case S.Prepend(item, collection) => (resolveSymbol(item), resolveSymbol(collection)).mapN(R.Prepend)
+      case S.Append(collection, item)  => (resolveSymbol(collection), resolveSymbol(item)).mapN(R.Append)
+      case S.Concat(left, right)       => (resolveSymbol(left), resolveSymbol(right)).mapN(R.Concat)
       case predicate: S.Predicate      => resolvePredicate(predicate)
     }
   }

@@ -89,13 +89,19 @@ class TestPlanGeneratorSpec extends TestPlanGeneratorSpecBase {
           Equals(StatusCode(0), Literal(200))
         ),
         list() -> checks(
-          Contains(ResponseBody(1), Literal(42))
+
         ),
         add(42) -> checks(
           Equals(StatusCode(2), Literal(200))
         ),
         list() -> checks(
-          Contains(ResponseBody(3), Literal(42)) // Todo: improve this test (support concatenation!)
+          Equals(
+            ResponseBody(3),
+            Concat(
+              ResponseBody(1),
+              Literal(42)
+            )
+          )
         ),
       )
     }

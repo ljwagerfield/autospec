@@ -43,6 +43,9 @@ object SymbolResolver {
           .getOrElse(Json.Null)
       case Count(symbol)                    => Json.fromInt(toVector(resolve(symbol)).size)
       case Distinct(symbol)                 => Json.fromValues(toVector(resolve(symbol)).distinct)
+      case Prepend(item, collection)        => Json.fromValues(resolve(item) +: toVector(resolve(collection)))
+      case Append(collection, item)         => Json.fromValues(toVector(resolve(collection)) :+ resolve(item))
+      case Concat(left, right)              => Json.fromValues(toVector(resolve(left)) ++ toVector(resolve(right)))
       case predicate: Predicate             => Json.fromBoolean(resolvePredicate(history, lambdaParameterStack, predicate))
     }
   }

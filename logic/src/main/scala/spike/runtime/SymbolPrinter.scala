@@ -22,6 +22,9 @@ object ScalaSymbolPrinter extends SymbolPrinter {
       case Find(symbol, predicate)    => s"${p(symbol)}.find(${p(predicate)})"
       case Count(symbol)              => s"${p(symbol)}.count"
       case Distinct(symbol)           => s"${p(symbol)}.distinct"
+      case Prepend(item, collection)  => s"${p(item)} +: ${p(collection)}"
+      case Append(collection, item)   => s"${p(collection)} :+ ${p(item)}"
+      case Concat(left, right)        => s"${p(left)} ++ ${p(right)}"
       case Equals(left, right)        => wrapParenthesis(s"${p(left)} == ${p(right)}", left, right)
       case And(left, right)           => wrapParenthesis(s"${p(left)} && ${p(right)}", left, right)
       case Or(left, right)            => wrapParenthesis(s"${p(left)} || ${p(right)}", left, right)

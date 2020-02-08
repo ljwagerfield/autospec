@@ -27,9 +27,12 @@ object ListApi {
         ),
         Nil,
         List(
-          Predicate.Contains(
+          Predicate.Equals(
             Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-            Parameter(EndpointParameterName("value"))
+            Concat(
+              Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
+              Parameter(EndpointParameterName("value"))
+            )
           ),
           Predicate.Equals(
             StatusCode, Literal(200)

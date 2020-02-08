@@ -18,6 +18,9 @@ sealed trait CommonSymbols {
   case class Find(symbol: Symbol, predicate: Predicate) extends Symbol
   case class Count(symbol: Symbol) extends Symbol
   case class Distinct(symbol: Symbol) extends Symbol
+  case class Prepend(item: Symbol, collection: Symbol) extends Symbol
+  case class Append(collection: Symbol, item: Symbol) extends Symbol
+  case class Concat(leftCollection: Symbol, rightCollection: Symbol) extends Symbol
 
   sealed trait Predicate extends Symbol
   object Predicate {
