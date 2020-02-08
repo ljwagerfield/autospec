@@ -55,10 +55,8 @@ abstract class TestPlanGeneratorSpecBase extends BaseSpec {
         requests.toList.map(_._1)
       )
 
-    val testPlanGenerator = new TestPlanGenerator()
-
     val testPlan =
-      testPlanGenerator.generate(schema, List(testPath))
+      TestPlanGenerator.generate(schema, List(testPath))
 
     val requestsWithChecks =
       testPlan.paths.flatMap(_.requests)

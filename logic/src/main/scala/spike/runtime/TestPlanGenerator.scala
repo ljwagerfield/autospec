@@ -7,7 +7,7 @@ import spike.RuntimeSymbols.Predicate._
 import scala.collection.immutable.{Map => ScalaMap}
 import cats.implicits._
 
-class TestPlanGenerator() {
+object TestPlanGenerator {
   private type RequestIndex            = Int
   private type PostconditionsByRequest = ScalaMap[RequestIndex, ScalaMap[ConditionId, Predicate]]
 

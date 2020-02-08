@@ -4,25 +4,31 @@ import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
-import spike.runtime.http.{HttpRequestEncoder, HttpRequestExecutor}
 import spike.schema.ApplicationSchema
 
 class ConsoleApp()(implicit scheduler: Scheduler) {
-  private val printer: SymbolPrinter               = ScalaSymbolPrinter
-  private val testPathGenerator: TestPathGenerator = new TestPathGenerator()
-  private val testPlanGenerator: TestPlanGenerator = new TestPlanGenerator()
+  private val printer: SymbolPrinter = ScalaSymbolPrinter
 
   def run(schema: ApplicationSchema): Task[Unit] =
-    run(testPlanGenerator.generate(schema, testPathGenerator.generate(schema)))
+    run(
+      TestPlanGenerator.generate(
+        schema,
+        TestPathGenerator.generate(schema)
+      )
+    )
 
   def run(schema: ApplicationSchema, paths: List[TestPath]): Task[Unit] =
-    run(testPlanGenerator.generate(schema, paths))
+    run(
+      TestPlanGenerator.generate(
+        schema,
+        paths
+      )
+    )
 
   private def run(testPlan: TestPlan): Task[Unit] =
     AsyncHttpClient.resource[Task]().use { httpClient =>
-      val httpRequestEncoder  = new HttpRequestEncoder()
       val httpRequestExecutor = new HttpRequestExecutor(httpClient)
-      val testPlanExecutor    = new TestPlanExecutor(httpRequestEncoder, httpRequestExecutor)
+      val testPlanExecutor    = new TestPlanExecutor(httpRequestExecutor)
       testPlanExecutor.execute(testPlan).map { testResults =>
         printResults(testPlan, testResults)
       }

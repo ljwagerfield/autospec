@@ -1,16 +1,15 @@
-package spike.runtime.http
+package spike.runtime
 
 import io.circe.Json
 import org.http4s
-import org.http4s.{Header, Headers, HttpVersion, MediaType, Method, Request, Uri}
 import org.http4s.headers.{`Content-Length`, `Content-Type`}
 import org.http4s.implicits._
-import spike.runtime.{EndpointRequest, EndpointRequestResponse, SymbolResolver}
-import spike.schema.{ApplicationSchema, EndpointId, EndpointParameter, EndpointParameterLocation, EndpointParameterSerialization}
-import spike.schema.HttpMethod.{Delete, Get, Patch, Post, Put}
+import org.http4s._
+import spike.schema.HttpMethod._
+import spike.schema._
 
-class HttpRequestEncoder {
-  def apply[F[_]](schema: ApplicationSchema, history: List[EndpointRequestResponse], request: EndpointRequest): Request[F] = {
+object HttpRequestEncoder {
+  def encode[F[_]](schema: ApplicationSchema, history: List[EndpointRequestResponse], request: EndpointRequest): Request[F] = {
     val endpoint   = schema.endpoint(request.endpointId)
     val api        = schema.api(endpoint.apiId)
     val method     = endpoint.method match {

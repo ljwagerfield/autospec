@@ -1,15 +1,14 @@
-package spike.runtime.http
+package spike.runtime
 
+import cats.implicits._
+import io.circe._
+import io.circe.parser._
 import monix.eval.Task
 import org.http4s.Request
 import org.http4s.client.Client
-import spike.runtime.EndpointResponse
-import io.circe._
-import io.circe.parser._
-import cats.implicits._
 
 class HttpRequestExecutor(httpClient: Client[Task]) {
-  def apply(request: Request[Task]): Task[EndpointResponse] =
+  def execute(request: Request[Task]): Task[EndpointResponse] =
     httpClient.fetch(request) { response =>
       val bodyAsString = response.bodyAsText.foldMonoid.compile.lastOrError
       bodyAsString.map { string =>
