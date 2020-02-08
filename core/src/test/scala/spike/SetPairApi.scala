@@ -1,7 +1,7 @@
 package spike
 
-import io.circe.Json
 import spike.SchemaSymbols._
+import spike.macros.ClientMacros
 import spike.runtime.EndpointRequest
 import spike.schema._
 
@@ -21,38 +21,6 @@ trait SetPairApi[A] {
 }
 
 object SetPairApi {
-  object Client extends SetPairApi[EndpointRequest] {
-    implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-
-    def addA(value: Int) =
-      EndpointRequest(
-        currentMethodEndpointId,
-        scala.collection.immutable.Map(
-          EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(value))
-        )
-      )
-
-    def addB(value: Int) =
-      EndpointRequest(
-        currentMethodEndpointId,
-        scala.collection.immutable.Map(
-          EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(value))
-        )
-      )
-
-    def listA() =
-      EndpointRequest(
-        currentMethodEndpointId,
-        scala.collection.immutable.Map.empty
-      )
-
-    def listB() =
-      EndpointRequest(
-        currentMethodEndpointId,
-        scala.collection.immutable.Map.empty
-      )
-  }
-
   object Schema extends SetPairApi[EndpointDefinition] {
     def addA(value: Int) =
       EndpointDefinition(
@@ -143,5 +111,12 @@ object SetPairApi {
           )
         )
       )
+  }
+  object Client extends SetPairApi[EndpointRequest] {
+    implicit val schema: ApplicationSchema = schemaFromObject(Schema)
+    def addA(value: Int) = ClientMacros.endpointRequest[EndpointRequest]()
+    def addB(value: Int) = ClientMacros.endpointRequest[EndpointRequest]()
+    def listA()          = ClientMacros.endpointRequest[EndpointRequest]()
+    def listB()          = ClientMacros.endpointRequest[EndpointRequest]()
   }
 }
