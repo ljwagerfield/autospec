@@ -102,8 +102,8 @@ object TestPlanGenerator {
       case LambdaParameter(_)         => None
 
       // Recursive Data Structures
-      case Map(symbol, _)             => maxRequestIndex(symbol)
-      case FlatMap(symbol, _)         => maxRequestIndex(symbol)
+      case Map(symbol, path)          => max(maxRequestIndex(symbol), maxRequestIndex(path))
+      case FlatMap(symbol, path)      => max(maxRequestIndex(symbol), maxRequestIndex(path))
       case Flatten(symbol)            => maxRequestIndex(symbol)
       case Find(symbol, predicate)    => max(maxRequestIndex(symbol), maxRequestIndex(predicate))
       case Count(symbol)              => maxRequestIndex(symbol)

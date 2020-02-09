@@ -1,6 +1,5 @@
 package spike
 
-import cats.data.NonEmptyList
 import io.circe.Json
 import spike.schema.{EndpointId, EndpointParameterName}
 
@@ -12,9 +11,9 @@ sealed trait CommonSymbols {
   case class LambdaParameter(distance: Int) extends Symbol // 0 is current lambda's param, 1 is parent, 2 is grandparent, etc. Used with things like 'Exists'
 
   // Recursive Symbols
-  case class Map(symbol: Symbol, path: NonEmptyList[String]) extends Symbol
+  case class Map(symbol: Symbol, path: Symbol) extends Symbol
   case class Flatten(symbol: Symbol) extends Symbol
-  case class FlatMap(symbol: Symbol, path: NonEmptyList[String]) extends Symbol
+  case class FlatMap(symbol: Symbol, path: Symbol) extends Symbol
   case class Find(symbol: Symbol, predicate: Predicate) extends Symbol
   case class Count(symbol: Symbol) extends Symbol
   case class Distinct(symbol: Symbol) extends Symbol

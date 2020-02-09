@@ -7,6 +7,7 @@ import spike.schema._
 
 trait SetApi[A] {
   def add(value: Int): A
+  def remove(value: Int): A
   def list(): A
 }
 
@@ -37,6 +38,33 @@ object SetApi {
         )
       )
 
+    def remove(value: Int) =
+      EndpointDefinition(
+        currentMethodEndpointId,
+        testApiId,
+        HttpMethod.Post,
+        "/foos",
+        List(
+          EndpointParameter(
+            EndpointParameterName("value"),
+            EndpointParameterLocation.Body,
+            EndpointParameterSerialization.ToString("text/plain")
+          )
+        ),
+        Nil,
+        List(
+          Predicate.Not(
+            Predicate.Contains(
+              Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
+              Parameter(EndpointParameterName("value"))
+            )
+          ),
+          Predicate.Equals(
+            StatusCode, Literal(200)
+          )
+        )
+      )
+
     def list() =
       EndpointDefinition(
         currentMethodEndpointId,
@@ -59,7 +87,8 @@ object SetApi {
   }
   object Client extends SetApi[EndpointRequest] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-    def add(value: Int) = ClientMacros.endpointRequest()
-    def list()          = ClientMacros.endpointRequest()
+    def add(value: Int)    = ClientMacros.endpointRequest()
+    def remove(value: Int) = ClientMacros.endpointRequest()
+    def list()             = ClientMacros.endpointRequest()
   }
 }

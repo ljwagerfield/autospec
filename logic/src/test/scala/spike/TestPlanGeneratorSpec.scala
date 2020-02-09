@@ -4,7 +4,7 @@ import spike.RuntimeSymbols.Predicate._
 import spike.RuntimeSymbols._
 
 class TestPlanGeneratorSpec extends TestPlanGeneratorSpecBase {
-  "TestPlanGenerator.from" should {
+  "TestPlanGenerator.generate" should {
     "check postconditions that don't contain references to other endpoints immediately" in {
       import spike.SetApi.Client._
       test(

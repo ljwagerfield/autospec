@@ -34,7 +34,7 @@ object SymbolResolver {
       case LambdaParameter(distance)        => lambdaParameterStack(distance)
       case ResponseBody(requestIndex)       => responseAt(requestIndex).body
       case StatusCode(requestIndex)         => Json.fromInt(responseAt(requestIndex).status)
-      case Map(symbol, path)                => path.foldLeft(resolve(symbol))(mapJson)
+      case Map(symbol, path)                => toVector(resolve(path)).foldLeft(resolve(symbol))(mapJson)
       case FlatMap(symbol, path)            => resolve(Flatten(Map(symbol, path)))
       case Flatten(symbol)                  => flatten(resolve(symbol))
       case Find(symbol, predicate)          =>
@@ -53,14 +53,14 @@ object SymbolResolver {
   // We use 'Json.Null' instead of 'None: Option[Json]' since optionality may occur _within_ JSON structures too, and
   // we can only use 'Json.Null' there. E.g. 'Map' operations cannot change the size of an array, and since objects in
   // arrays may be different shapes, 'Map' operations may need to yield 'Json.Null' for some elements but not others.
-  private def mapJson(json: Json, key: String): Json =
+  private def mapJson(json: Json, key: Json): Json =
     json.fold(
       Json.Null,
       _ => Json.Null,
       _ => Json.Null,
       _ => Json.Null,
       x => Json.fromValues(x.map(mapJson(_, key))),
-      x => x(key).getOrElse(Json.Null)
+      x => x(key.toString()).getOrElse(Json.Null) // Todo: check if we can access array elements this way.
     )
 
   private def flatten(json: Json): Json =
