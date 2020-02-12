@@ -10,6 +10,7 @@ trait SetApi[A] {
   def remove(value: Int): A
   def removeOrError(value: Int): A
   def list(): A
+  def count(): A
 }
 
 object SetApi {
@@ -120,6 +121,23 @@ object SetApi {
           )
         )
       )
+
+    def count() =
+      EndpointDefinition(
+        currentMethodEndpointId,
+        testApiId,
+        HttpMethod.Get,
+        "/foos/count",
+        Nil,
+        Nil,
+        List(
+          Predicate.Equals(
+            Count(Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true)),
+            ResponseBody
+          )
+        ),
+        forcePure = true
+      )
   }
   object Client extends SetApi[EndpointRequest] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
@@ -127,5 +145,6 @@ object SetApi {
     def remove(value: Int)        = ClientMacros.endpointRequest()
     def removeOrError(value: Int) = ClientMacros.endpointRequest()
     def list()                    = ClientMacros.endpointRequest()
+    def count()                   = ClientMacros.endpointRequest()
   }
 }

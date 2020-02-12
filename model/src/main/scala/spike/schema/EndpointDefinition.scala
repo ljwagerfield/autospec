@@ -9,7 +9,8 @@ case class EndpointDefinition(
   relativeUrl: String,
   parameters: List[EndpointParameter],
   preconditions: List[Precondition],
-  postconditions: List[Predicate] // We also check the post-conditions on all referenced endpoints where 'evaluateAfterExecution==true'
+  postconditions: List[Predicate], // We also check the post-conditions on all referenced endpoints where 'evaluateAfterExecution==true'
+  forcePure: Boolean = false
 ) {
   val preconditionMap: Map[ConditionId, Precondition] =
     preconditions.zipWithIndex.map { case (precondition, index) =>

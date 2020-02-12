@@ -90,7 +90,9 @@ object TestPlanGenerator {
     // request. It may not be: for example, a pure endpoint can reference other pure endpoints to declare synchronicity
     // with them. In these scenarios, the developer must explicitly mark the endpoint as 'pure'.
     val isMutation =
-      hasUnresolvedForwardLookups || postconditionsByRequest.keySet.maxOption.exists(_ > requestIndex)
+      !endpoint.forcePure && (
+        hasUnresolvedForwardLookups || postconditionsByRequest.keySet.maxOption.exists(_ > requestIndex)
+      )
 
     val (previousPostconditions, nextPreconditionScope) =
       if (isMutation)

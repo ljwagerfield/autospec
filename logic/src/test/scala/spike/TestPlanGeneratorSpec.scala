@@ -250,5 +250,22 @@ class TestPlanGeneratorSpec extends TestPlanGeneratorSpecBase {
         )
       )
     }
+
+    "allow endpoints to be explicitly marked as pure" in {
+      import spike.SetApi.Client._
+      test(
+        add(42) -> checks(
+          Equals(StatusCode(0), Literal(200))
+        ),
+        count() -> checks(
+
+        ),
+        list() -> checks(
+          Contains(ResponseBody(2), Literal(42)), // Request #1 is explicitly marked as pure, so shouldn't invalidate this postcondition.
+          Equals(Count(ResponseBody(2)), ResponseBody(1)),
+          Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2)))
+        )
+      )
+    }
   }
 }
