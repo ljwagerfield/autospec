@@ -1,3 +1,5 @@
 package spike.runtime
 
-case class TestPath(id: TestPathId, requests: List[EndpointRequest])
+import cats.data.Chain
+
+case class TestPath(id: TestPathId, requests: Chain[EndpointRequest])

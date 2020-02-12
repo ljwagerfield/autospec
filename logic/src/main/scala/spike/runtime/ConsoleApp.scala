@@ -42,7 +42,7 @@ class ConsoleApp()(implicit scheduler: Scheduler) {
 
     testPlan.paths.foreach { path =>
       println(s"${color(false)}  ${path.id.value}:")
-      path.requests.zipWithIndex.foreach { case (EndpointRequestWithChecks(request, checks), i) =>
+      path.requests.zipWithIndex.toList.foreach { case (EndpointRequestWithChecks(request, checks), i) =>
         val requestId = EndpointRequestId(path.id, i)
         val failure   = testResults.get(requestId)
         val failedConditions = failure.toList.flatMap(_.failures.toList).toSet

@@ -4,7 +4,7 @@ import spike.{RuntimeSymbols => R}
 import spike.{SchemaSymbols => S}
 import cats.implicits._
 import alleycats.std.map._
-import cats.data.ValidatedNel
+import cats.data.{Chain, ValidatedNec}
 import spike.runtime.SymbolConverter.SymbolConverterError.{UnresolvedForwardLookup, UnresolvedReverseLookup}
 
 object SymbolConverter {
@@ -14,7 +14,7 @@ object SymbolConverter {
     case object UnresolvedReverseLookup extends SymbolConverterError
   }
 
-  type SymbolConverterResult[A] = ValidatedNel[SymbolConverterError, A]
+  type SymbolConverterResult[A] = ValidatedNec[SymbolConverterError, A]
 
   /**
    * Converts a schema predicate to a runtime predicate.
@@ -25,8 +25,8 @@ object SymbolConverter {
     current: EndpointRequest,
     currentRequestIndex: Int,
     beforeOffset: Int,
-    before: List[EndpointRequest],
-    after: List[EndpointRequest],
+    before: Chain[EndpointRequest],
+    after: Chain[EndpointRequest],
     predicate: S.Predicate
   ): SymbolConverterResult[R.Predicate] = {
     val resolveSymbol    = convertToRuntimeSymbol(current, currentRequestIndex, beforeOffset, before, after, _: S.Symbol)
@@ -50,8 +50,8 @@ object SymbolConverter {
     current: EndpointRequest,
     currentRequestIndex: Int,
     beforeOffset: Int,
-    before: List[EndpointRequest],
-    after: List[EndpointRequest],
+    before: Chain[EndpointRequest],
+    after: Chain[EndpointRequest],
     symbol: S.Symbol
   ): SymbolConverterResult[R.Symbol] = {
     val resolveSymbol       = convertToRuntimeSymbol(current, currentRequestIndex, beforeOffset, before, after, _: S.Symbol)
@@ -69,7 +69,7 @@ object SymbolConverter {
           scope
             .zipWithIndex
             .collectFirst { case (request, index) if request === r => index + indexOffset }
-            .toValidNel(unresolved)
+            .toValidNec(unresolved)
 
         val runtimeParameters  = schemaParameters.traverse(resolveSymbol)
         val targetRequest      = runtimeParameters.map(EndpointRequest(endpointId, _))
@@ -77,11 +77,11 @@ object SymbolConverter {
 
         targetRequestIndex.map(R.ResponseBody)
 
-      case S.ResponseBody              => R.ResponseBody(currentRequestIndex).validNel
-      case S.StatusCode                => R.StatusCode(currentRequestIndex).validNel
-      case S.Parameter(name)           => current.parameterValue(name).validNel
-      case S.Literal(value)            => R.Literal(value).validNel
-      case S.LambdaParameter(distance) => R.LambdaParameter(distance).validNel
+      case S.ResponseBody              => R.ResponseBody(currentRequestIndex).validNec
+      case S.StatusCode                => R.StatusCode(currentRequestIndex).validNec
+      case S.Parameter(name)           => current.parameterValue(name).validNec
+      case S.Literal(value)            => R.Literal(value).validNec
+      case S.LambdaParameter(distance) => R.LambdaParameter(distance).validNec
       case S.Map(symbol, path)         => (resolveSymbol(symbol), resolveSymbol(path)).mapN(R.Map)
       case S.FlatMap(symbol, path)     => (resolveSymbol(symbol), resolveSymbol(path)).mapN(R.FlatMap)
       case S.Flatten(symbol)           => resolveSymbol(symbol).map(R.Flatten)

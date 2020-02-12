@@ -1,6 +1,6 @@
 package spike
 
-import cats.data.NonEmptyList
+import cats.data.{Chain, NonEmptyList}
 import org.scalactic.source
 import spike.RuntimeSymbols._
 import spike.runtime._
@@ -52,14 +52,14 @@ abstract class TestPlanGeneratorSpecBase extends BaseSpec {
     val testPath =
       TestPath(
         testPathId,
-        requests.toList.map(_._1)
+        Chain.fromSeq(requests.map(_._1))
       )
 
     val testPlan =
       TestPlanGenerator.generate(schema, List(testPath))
 
     val requestsWithChecks =
-      testPlan.paths.flatMap(_.requests)
+      testPlan.paths.flatMap(_.requests.toList)
 
     requestsWithChecks.zipWithIndex.foreach { case (request, requestIndex) =>
       val requestId = EndpointRequestId(testPathId, requestIndex)

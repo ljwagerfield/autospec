@@ -1,5 +1,6 @@
 package spike.demo
 
+import cats.data.Chain
 import cats.effect._
 import cats.implicits._
 import io.circe.Json
@@ -113,7 +114,7 @@ object App extends IOApp {
 
     val testPath = TestPath(
       TestPathId("example-test"),
-      List(
+      Chain(
         EndpointRequest(
           EndpointId("add"),
           scala.collection.immutable.Map(

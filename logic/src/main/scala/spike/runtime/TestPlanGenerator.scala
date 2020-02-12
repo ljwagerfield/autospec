@@ -1,5 +1,6 @@
 package spike.runtime
 
+import cats.data.Chain
 import io.circe.Json
 import spike.schema.{ApplicationSchema, ConditionId, Precondition}
 import spike.RuntimeSymbols._
@@ -25,25 +26,25 @@ object TestPlanGenerator {
       testPath.id,
       testPath
         .requests
-        .foldLeft(State(0, 0, Nil, testPath.requests, Nil, ScalaMap.empty))(addChecksToRequest(schema, _, _))
+        .foldLeft(State(0, 0, Chain.empty, testPath.requests, Chain.empty, ScalaMap.empty))(addChecksToRequest(schema, _, _))
         .requests
     )
 
   private def addChecksToRequest(schema: ApplicationSchema, state: State, request: EndpointRequest): State = {
-    val requestIndex                         = state.currentRequestIndex
-    val endpoint                             = schema.endpoint(request.endpointId)
-    val preconditionScope                    = state.preconditionScope
-    val currentRequest :: postconditionScope = state.postconditionScope
+    val requestIndex       = state.currentRequestIndex
+    val endpoint           = schema.endpoint(request.endpointId)
+    val preconditionScope  = state.preconditionScope
+    val postconditionScope = state.postconditionScope.tail
 
     val (_, preconditions) =
       endpoint.preconditionMap.toList.partitionBifold { case (conditionId, Precondition(predicate, expectedStatus)) =>
         for {
           success <- SymbolConverter.convertToRuntimePredicate(
-            currentRequest,
+            request,
             requestIndex,
             state.preconditionOffset,
             preconditionScope,
-            Nil,
+            Chain.empty,
             predicate
           )
           successOrExpectedError =
@@ -64,7 +65,7 @@ object TestPlanGenerator {
       endpoint.postconditionMap.toList.flatPartitionBifold { case (conditionId, predicate) =>
         {for {
           success <- SymbolConverter.convertToRuntimePredicate(
-            currentRequest,
+            request,
             requestIndex,
             state.preconditionOffset,
             preconditionScope,
@@ -102,14 +103,14 @@ object TestPlanGenerator {
             requestIndex -> state.deferredPostconditions.getOrElse(requestIndex, ScalaMap.empty)
           ),
           // Prevent references to previously executed requests (their results are considered stale after a mutation).
-          List(
-            currentRequest
+          Chain(
+            request
           )
         )
       else
-        (state.deferredPostconditions, state.preconditionScope :+ currentRequest)
+        (state.deferredPostconditions, state.preconditionScope :+ request)
 
-    val preconditionScopeShrinkage = state.preconditionScope.size - (nextPreconditionScope.size - 1)
+    val preconditionScopeShrinkage = (state.preconditionScope.size - (nextPreconditionScope.size - 1)).toInt
 
     val mergedPostconditions       = mergePostconditions(previousPostconditions, postconditionsByRequest)
     val immediatePostconditions    = mergedPostconditions.getOrElse(requestIndex, ScalaMap.empty)
@@ -167,9 +168,9 @@ object TestPlanGenerator {
   case class State(
     currentRequestIndex: Int,
     preconditionOffset: Int,
-    preconditionScope: List[EndpointRequest],
-    postconditionScope: List[EndpointRequest],
-    requests: List[EndpointRequestWithChecks],
+    preconditionScope: Chain[EndpointRequest],
+    postconditionScope: Chain[EndpointRequest],
+    requests: Chain[EndpointRequestWithChecks],
     deferredPostconditions: PostconditionsByRequest
   )
 }
