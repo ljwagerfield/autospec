@@ -8,6 +8,7 @@ import spike.schema._
 trait SetApi[A] {
   def add(value: Int): A
   def remove(value: Int): A
+  def removeOrError(value: Int): A
   def list(): A
 }
 
@@ -42,7 +43,7 @@ object SetApi {
       EndpointDefinition(
         currentMethodEndpointId,
         testApiId,
-        HttpMethod.Post,
+        HttpMethod.Delete,
         "/foos",
         List(
           EndpointParameter(
@@ -52,6 +53,41 @@ object SetApi {
           )
         ),
         Nil,
+        List(
+          Predicate.Not(
+            Predicate.Contains(
+              Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
+              Parameter(EndpointParameterName("value"))
+            )
+          ),
+          Predicate.Equals(
+            StatusCode, Literal(200)
+          )
+        )
+      )
+
+    def removeOrError(value: Int) =
+      EndpointDefinition(
+        currentMethodEndpointId,
+        testApiId,
+        HttpMethod.Delete,
+        "/foos",
+        List(
+          EndpointParameter(
+            EndpointParameterName("value"),
+            EndpointParameterLocation.Body,
+            EndpointParameterSerialization.ToString("text/plain")
+          )
+        ),
+        List(
+          Precondition(
+            Predicate.Contains(
+              Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
+              Parameter(EndpointParameterName("value"))
+            ),
+            404
+          )
+        ),
         List(
           Predicate.Not(
             Predicate.Contains(
@@ -87,8 +123,9 @@ object SetApi {
   }
   object Client extends SetApi[EndpointRequest] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-    def add(value: Int)    = ClientMacros.endpointRequest()
-    def remove(value: Int) = ClientMacros.endpointRequest()
-    def list()             = ClientMacros.endpointRequest()
+    def add(value: Int)           = ClientMacros.endpointRequest()
+    def remove(value: Int)        = ClientMacros.endpointRequest()
+    def removeOrError(value: Int) = ClientMacros.endpointRequest()
+    def list()                    = ClientMacros.endpointRequest()
   }
 }

@@ -14,6 +14,23 @@ class TestPlanGeneratorSpec extends TestPlanGeneratorSpecBase {
       )
     }
 
+    "support preconditions that refer to other endpoints" in {
+      import spike.SetApi.Client._
+      test(
+        list() -> checks(
+          Equals(Count(Distinct(ResponseBody(0))), Count(ResponseBody(0)))
+        ),
+        removeOrError(42) -> checks(
+          Equals(StatusCode(1), Literal(200)),
+          Or(Contains(ResponseBody(0),Literal(42)),Equals(StatusCode(1),Literal(404))) // Precondition on previous endpoint
+        ),
+        list() -> checks(
+          Not(Contains(ResponseBody(2), Literal(42))),
+          Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2)))
+        )
+      )
+    }
+
     "defer postconditions that contain references to other endpoints" in {
       import spike.SetApi.Client._
       test(
@@ -157,6 +174,26 @@ class TestPlanGeneratorSpec extends TestPlanGeneratorSpecBase {
         list() -> checks(
           Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2))),
           Equals(ResponseBody(1), ResponseBody(2))
+        )
+      )
+    }
+
+    "not check preconditions that refer to other endpoints if mutations occur in-between" in {
+      import spike.SetApi.Client._
+      test(
+        list() -> checks(
+          Equals(Count(Distinct(ResponseBody(0))), Count(ResponseBody(0)))
+        ),
+        remove(52) -> checks(
+          Equals(StatusCode(1), Literal(200))
+        ),
+        removeOrError(42) -> checks(
+          Equals(StatusCode(2), Literal(200)),
+          // Or(Contains(ResponseBody(0),Literal(42)),Equals(StatusCode(1),Literal(404))) // Invalidated by request #1
+        ),
+        list() -> checks(
+          Not(Contains(ResponseBody(3), Literal(42))),
+          Equals(Count(Distinct(ResponseBody(3))), Count(ResponseBody(3)))
         )
       )
     }
