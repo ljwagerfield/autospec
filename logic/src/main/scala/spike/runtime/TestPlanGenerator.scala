@@ -4,8 +4,11 @@ import io.circe.Json
 import spike.schema.{ApplicationSchema, ConditionId, Precondition}
 import spike.RuntimeSymbols._
 import spike.RuntimeSymbols.Predicate._
+import spike.common.FunctionExtensions._
+
 import scala.collection.immutable.{Map => ScalaMap}
 import cats.implicits._
+import spike.runtime.SymbolConverter.SymbolConverterError.{UnresolvedForwardLookup, UnresolvedReverseLookup}
 
 object TestPlanGenerator {
   private type RequestIndex            = Int
@@ -22,20 +25,23 @@ object TestPlanGenerator {
       testPath.id,
       testPath
         .requests
-        .foldLeft(State(0, Nil, ScalaMap.empty))(addChecksToRequest(schema, testPath, _, _))
+        .foldLeft(State(0, 0, Nil, testPath.requests, Nil, ScalaMap.empty))(addChecksToRequest(schema, _, _))
         .requests
     )
 
-  private def addChecksToRequest(schema: ApplicationSchema, testPath: TestPath, state: State, request: EndpointRequest): State = {
-    val requestIndex = state.currentRequestIndex
-    val endpoint     = schema.endpoint(request.endpointId)
-    val (preconditionScope, currentRequest :: postconditionScope) = testPath.requests.splitAt(requestIndex)
+  private def addChecksToRequest(schema: ApplicationSchema, state: State, request: EndpointRequest): State = {
+    val requestIndex                         = state.currentRequestIndex
+    val endpoint                             = schema.endpoint(request.endpointId)
+    val preconditionScope                    = state.preconditionScope
+    val currentRequest :: postconditionScope = state.postconditionScope
 
-    val preconditions =
-      endpoint.preconditionMap.flatMap[ConditionId, Predicate] { case (conditionId, Precondition(predicate, expectedStatus)) =>
+    val (_, preconditions) =
+      endpoint.preconditionMap.toList.partitionBifold { case (conditionId, Precondition(predicate, expectedStatus)) =>
         for {
           success <- SymbolConverter.convertToRuntimePredicate(
             currentRequest,
+            requestIndex,
+            state.preconditionOffset,
             preconditionScope,
             Nil,
             predicate
@@ -54,11 +60,13 @@ object TestPlanGenerator {
         )
       }
 
-    val newPostconditions =
-      endpoint.postconditionMap.flatMap[ConditionId, Predicate] { case (conditionId, predicate) =>
-        for {
+    val (unresolvedPostconditions, postconditions) =
+      endpoint.postconditionMap.toList.flatPartitionBifold { case (conditionId, predicate) =>
+        {for {
           success <- SymbolConverter.convertToRuntimePredicate(
             currentRequest,
+            requestIndex,
+            state.preconditionOffset,
             preconditionScope,
             postconditionScope,
             predicate
@@ -66,26 +74,55 @@ object TestPlanGenerator {
         } yield (
           conditionId,
           success
-        )
+        )}.leftMap(_.toList).map(_ :: Nil)
       }
-        .groupBy { case (_, predicate) =>
-          // Associate postconditions with the last request they reference internally (if any), so the condition can be
-          // be checked after that endpoint is executed (it cannot be checked before). If no endpoints are referenced,
-          // then check the postcondition immediately after the current request (i.e. 'getOrElse(requestIndex)').
-          maxRequestIndex(predicate).getOrElse(requestIndex)
-        }
 
-    val mergedPostconditions   = mergePostconditions(state.deferredPostconditions, newPostconditions)
-    val ownPostconditions      = mergedPostconditions.getOrElse(requestIndex, ScalaMap.empty)
-    val deferredPostconditions = mergedPostconditions - requestIndex
+    val postconditionsByRequest =
+      postconditions.toMap.groupBy { case (_, predicate) => maxRequestIndex(predicate).getOrElse(requestIndex) }
+
+    val hasUnresolvedForwardLookups =
+      unresolvedPostconditions.exists {
+        case UnresolvedForwardLookup => true
+        case UnresolvedReverseLookup => false
+      }
+
+    // If any postconditions reference requests other than the current one, then by default we assume this is a mutating
+    // request. It may not be: for example, a pure endpoint can reference other pure endpoints to declare synchronicity
+    // with them. In these scenarios, the developer must explicitly mark the endpoint as 'pure'.
+    val isMutation =
+      hasUnresolvedForwardLookups || postconditionsByRequest.keySet.maxOption.exists(_ > requestIndex)
+
+    val (previousPostconditions, nextPreconditionScope) =
+      if (isMutation)
+        (
+          // Clear all previously deferred postconditions (mutations invalidated them).
+          ScalaMap(
+            requestIndex -> state.deferredPostconditions.getOrElse(requestIndex, ScalaMap.empty)
+          ),
+          // Prevent references to previously executed requests (their results are considered stale after a mutation).
+          List(
+            currentRequest
+          )
+        )
+      else
+        (state.deferredPostconditions, state.preconditionScope :+ currentRequest)
+
+    val preconditionScopeShrinkage = state.preconditionScope.size - (nextPreconditionScope.size - 1)
+
+    val mergedPostconditions       = mergePostconditions(previousPostconditions, postconditionsByRequest)
+    val immediatePostconditions    = mergedPostconditions.getOrElse(requestIndex, ScalaMap.empty)
+    val deferredPostconditions     = mergedPostconditions - requestIndex
 
     val requestWithChecks = EndpointRequestWithChecks(
       request,
-      preconditions ++ ownPostconditions
+      preconditions.toMap ++ immediatePostconditions
     )
 
     State(
       currentRequestIndex    = requestIndex + 1,
+      preconditionOffset     = state.preconditionOffset + preconditionScopeShrinkage,
+      preconditionScope      = nextPreconditionScope,
+      postconditionScope     = postconditionScope,
       requests               = state.requests :+ requestWithChecks,
       deferredPostconditions = deferredPostconditions
     )
@@ -127,6 +164,9 @@ object TestPlanGenerator {
 
   case class State(
     currentRequestIndex: Int,
+    preconditionOffset: Int,
+    preconditionScope: List[EndpointRequest],
+    postconditionScope: List[EndpointRequest],
     requests: List[EndpointRequestWithChecks],
     deferredPostconditions: PostconditionsByRequest
   )

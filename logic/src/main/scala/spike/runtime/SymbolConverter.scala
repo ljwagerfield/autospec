@@ -4,8 +4,18 @@ import spike.{RuntimeSymbols => R}
 import spike.{SchemaSymbols => S}
 import cats.implicits._
 import alleycats.std.map._
+import cats.data.ValidatedNel
+import spike.runtime.SymbolConverter.SymbolConverterError.{UnresolvedForwardLookup, UnresolvedReverseLookup}
 
 object SymbolConverter {
+  sealed trait SymbolConverterError
+  object SymbolConverterError {
+    case object UnresolvedForwardLookup extends SymbolConverterError
+    case object UnresolvedReverseLookup extends SymbolConverterError
+  }
+
+  type SymbolConverterResult[A] = ValidatedNel[SymbolConverterError, A]
+
   /**
    * Converts a schema predicate to a runtime predicate.
    *
@@ -13,12 +23,14 @@ object SymbolConverter {
    */
   def convertToRuntimePredicate(
     current: EndpointRequest,
+    currentRequestIndex: Int,
+    beforeOffset: Int,
     before: List[EndpointRequest],
     after: List[EndpointRequest],
     predicate: S.Predicate
-  ): Option[R.Predicate] = {
-    val resolveSymbol    = convertToRuntimeSymbol(current, before, after, _: S.Symbol)
-    val resolvePredicate = convertToRuntimePredicate(current, before, after, _: S.Predicate)
+  ): SymbolConverterResult[R.Predicate] = {
+    val resolveSymbol    = convertToRuntimeSymbol(current, currentRequestIndex, beforeOffset, before, after, _: S.Symbol)
+    val resolvePredicate = convertToRuntimePredicate(current, currentRequestIndex, beforeOffset, before, after, _: S.Predicate)
     predicate match {
       case S.Predicate.Equals(left, right)        => (resolveSymbol(left), resolveSymbol(right)).mapN(R.Predicate.Equals)
       case S.Predicate.And(left, right)           => (resolvePredicate(left), resolvePredicate(right)).mapN(R.Predicate.And)
@@ -35,38 +47,41 @@ object SymbolConverter {
    * @return None if the symbol references unresolvable requests. Some otherwise.
    */
   def convertToRuntimeSymbol(
-                              current: EndpointRequest,
-                              before: List[EndpointRequest],
-                              after: List[EndpointRequest],
-                              symbol: S.Symbol
-  ): Option[R.Symbol] = {
-    val resolveSymbol       = convertToRuntimeSymbol(current, before, after, _: S.Symbol)
-    val resolvePredicate    = convertToRuntimePredicate(current, before, after, _: S.Predicate)
-    val currentRequestIndex = before.size
+    current: EndpointRequest,
+    currentRequestIndex: Int,
+    beforeOffset: Int,
+    before: List[EndpointRequest],
+    after: List[EndpointRequest],
+    symbol: S.Symbol
+  ): SymbolConverterResult[R.Symbol] = {
+    val resolveSymbol       = convertToRuntimeSymbol(current, currentRequestIndex, beforeOffset, before, after, _: S.Symbol)
+    val resolvePredicate    = convertToRuntimePredicate(current, currentRequestIndex, beforeOffset, before, after, _: S.Predicate)
 
     symbol match {
       case S.Endpoint(endpointId, schemaParameters, evaluateAfterExecution) =>
-        val (scope, indexOffset) =
+        val (scope, unresolved, indexOffset) =
           if (evaluateAfterExecution)
-            after -> (1 + currentRequestIndex)
+            (after, UnresolvedForwardLookup, currentRequestIndex + 1)
           else
-            before -> 0
+            (before, UnresolvedReverseLookup, beforeOffset)
 
-        for {
-          runtimeParameters  <- schemaParameters.traverse(resolveSymbol)
-          targetRequest       = EndpointRequest(endpointId, runtimeParameters)
-          targetRequestIndex <- scope.zipWithIndex.collectFirst {
-            case (request, index) if request === targetRequest => index + indexOffset
-          }
-        } yield {
-          R.ResponseBody(targetRequestIndex)
-        }
+        def findRequestIndex(r: EndpointRequest): SymbolConverterResult[Int] =
+          scope
+            .zipWithIndex
+            .collectFirst { case (request, index) if request === r => index + indexOffset }
+            .toValidNel(unresolved)
 
-      case S.ResponseBody              => Some(R.ResponseBody(currentRequestIndex))
-      case S.StatusCode                => Some(R.StatusCode(currentRequestIndex))
-      case S.Parameter(name)           => Some(current.parameterValue(name))
-      case S.Literal(value)            => Some(R.Literal(value))
-      case S.LambdaParameter(distance) => Some(R.LambdaParameter(distance))
+        val runtimeParameters  = schemaParameters.traverse(resolveSymbol)
+        val targetRequest      = runtimeParameters.map(EndpointRequest(endpointId, _))
+        val targetRequestIndex = targetRequest.andThen(findRequestIndex)
+
+        targetRequestIndex.map(R.ResponseBody)
+
+      case S.ResponseBody              => R.ResponseBody(currentRequestIndex).validNel
+      case S.StatusCode                => R.StatusCode(currentRequestIndex).validNel
+      case S.Parameter(name)           => current.parameterValue(name).validNel
+      case S.Literal(value)            => R.Literal(value).validNel
+      case S.LambdaParameter(distance) => R.LambdaParameter(distance).validNel
       case S.Map(symbol, path)         => (resolveSymbol(symbol), resolveSymbol(path)).mapN(R.Map)
       case S.FlatMap(symbol, path)     => (resolveSymbol(symbol), resolveSymbol(path)).mapN(R.FlatMap)
       case S.Flatten(symbol)           => resolveSymbol(symbol).map(R.Flatten)
