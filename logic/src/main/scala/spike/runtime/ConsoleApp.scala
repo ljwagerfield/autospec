@@ -70,8 +70,10 @@ class ConsoleApp()(implicit scheduler: Scheduler) {
     val failureCount = testResults.values.toList.foldMap(_.failures.size)
 
     if (failureCount === 0)
-      println(s"${color(false)}All tests passed.")
+      print(s"${color(false)}All tests passed.")
     else
-      println(s"${color(true)}Uh oh! You have $failureCount failed condition${if (failureCount === 1) "" else "s"}.")
+      print(s"${color(true)}Uh oh! You have $failureCount failed condition${if (failureCount === 1) "" else "s"}.")
+
+    println(Console.RESET)
   }
 }
