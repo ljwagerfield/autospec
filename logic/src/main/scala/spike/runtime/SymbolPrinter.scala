@@ -5,7 +5,7 @@ import cats.implicits._
 
 trait SymbolPrinter {
   def print(symbol: Symbol, currentRequestIndex: Int): String
-  def print(request: EndpointRequest, currentRequestIndex: Int): String
+  def print(request: EndpointRequestOld, currentRequestIndex: Int): String
 }
 
 object ScalaSymbolPrinter extends SymbolPrinter {
@@ -34,7 +34,7 @@ object ScalaSymbolPrinter extends SymbolPrinter {
     }
   }
 
-  override def print(request: EndpointRequest, currentRequestIndex: Int): String =
+  override def print(request: EndpointRequestOld, currentRequestIndex: Int): String =
     s"${request.endpointId.value}(${request.parameterValues.toList.map(x => s"${x._1.value} = ${print(x._2, currentRequestIndex)}").mkString(", ")})"
 
   private def wrapParenthesis(value: String, left: Symbol, right: Symbol): String = {

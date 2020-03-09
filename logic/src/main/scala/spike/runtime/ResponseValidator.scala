@@ -5,8 +5,8 @@ import cats.data.NonEmptyList
 import spike.schema.ConditionId
 
 object ResponseValidator {
-  def validateResponse(history: List[EndpointRequestResponse], request: EndpointRequestWithChecks, response: EndpointResponse): Either[NonEmptyList[ConditionId], EndpointRequestResponse] = {
-    val current     = EndpointRequestResponse(request.request, response)
+  def validateResponse(history: List[EndpointRequestResponseOld], request: EndpointRequestWithChecks, response: EndpointResponse): Either[NonEmptyList[ConditionId], EndpointRequestResponseOld] = {
+    val current     = EndpointRequestResponseOld(request.request, response)
     val fullHistory = current :: history
     request
       .checks

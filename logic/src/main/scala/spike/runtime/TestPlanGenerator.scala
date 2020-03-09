@@ -5,7 +5,7 @@ import io.circe.Json
 import spike.schema.{ApplicationSchema, ConditionId, Precondition}
 import spike.RuntimeSymbols._
 import spike.RuntimeSymbols.Predicate._
-import spike.common.FunctionExtensions._
+import spike.common.FunctorExtensions._
 
 import scala.collection.immutable.{Map => ScalaMap}
 import cats.implicits._
@@ -30,7 +30,7 @@ object TestPlanGenerator {
         .requests
     )
 
-  private def addChecksToRequest(schema: ApplicationSchema, state: State, request: EndpointRequest): State = {
+  private def addChecksToRequest(schema: ApplicationSchema, state: State, request: EndpointRequestOld): State = {
     val requestIndex       = state.currentRequestIndex
     val endpoint           = schema.endpoint(request.endpointId)
     val preconditionScope  = state.preconditionScope
@@ -166,11 +166,11 @@ object TestPlanGenerator {
     (a.toList ::: b.toList).groupMapReduce(_._1)(_._2)(_ ++ _)
 
   case class State(
-    currentRequestIndex: Int,
-    preconditionOffset: Int,
-    preconditionScope: Chain[EndpointRequest],
-    postconditionScope: Chain[EndpointRequest],
-    requests: Chain[EndpointRequestWithChecks],
-    deferredPostconditions: PostconditionsByRequest
+                    currentRequestIndex: Int,
+                    preconditionOffset: Int,
+                    preconditionScope: Chain[EndpointRequestOld],
+                    postconditionScope: Chain[EndpointRequestOld],
+                    requests: Chain[EndpointRequestWithChecks],
+                    deferredPostconditions: PostconditionsByRequest
   )
 }

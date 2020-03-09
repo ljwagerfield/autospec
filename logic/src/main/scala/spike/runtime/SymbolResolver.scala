@@ -7,13 +7,13 @@ import spike.RuntimeSymbols._
 import spike.RuntimeSymbols.Predicate._
 
 object SymbolResolver {
-  def resolveSymbol(history: List[EndpointRequestResponse], symbol: Symbol): Json =
+  def resolveSymbol(history: List[EndpointRequestResponseOld], symbol: Symbol): Json =
     resolveSymbol(history, Nil, symbol)
 
-  def resolvePredicate(history: List[EndpointRequestResponse], predicate: Predicate): Boolean =
+  def resolvePredicate(history: List[EndpointRequestResponseOld], predicate: Predicate): Boolean =
     resolvePredicate(history, Nil, predicate)
 
-  private def resolvePredicate(history: List[EndpointRequestResponse], lambdaParameterStack: List[Json], predicate: Predicate): Boolean = {
+  private def resolvePredicate(history: List[EndpointRequestResponseOld], lambdaParameterStack: List[Json], predicate: Predicate): Boolean = {
     val resolveSym  = resolveSymbol(history, lambdaParameterStack, _: Symbol)
     val resolvePred = resolvePredicate(history, lambdaParameterStack, _: Predicate)
     predicate match {
@@ -26,7 +26,7 @@ object SymbolResolver {
     }
   }
 
-  private def resolveSymbol(history: List[EndpointRequestResponse], lambdaParameterStack: List[Json], symbol: Symbol): Json = {
+  private def resolveSymbol(history: List[EndpointRequestResponseOld], lambdaParameterStack: List[Json], symbol: Symbol): Json = {
     val resolve    = resolveSymbol(history, lambdaParameterStack, _: Symbol)
     val responseAt = (requestIndex: Int) => history(history.size - (requestIndex + 1)).response
     symbol match {

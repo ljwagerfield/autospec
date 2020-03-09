@@ -2,7 +2,7 @@ package spike
 
 import spike.SchemaSymbols._
 import spike.macros.ClientMacros
-import spike.runtime.EndpointRequest
+import spike.runtime.EndpointRequestOld
 import spike.schema._
 
 /**
@@ -112,7 +112,7 @@ object SetPairApi {
         )
       )
   }
-  object Client extends SetPairApi[EndpointRequest] {
+  object Client extends SetPairApi[EndpointRequestOld] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
     def addA(value: Int) = ClientMacros.endpointRequest()
     def addB(value: Int) = ClientMacros.endpointRequest()

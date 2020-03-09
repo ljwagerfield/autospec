@@ -22,12 +22,12 @@ object SymbolConverter {
    * @return None if the [[predicate]] references unresolvable requests. Some otherwise.
    */
   def convertToRuntimePredicate(
-    current: EndpointRequest,
-    currentRequestIndex: Int,
-    beforeOffset: Int,
-    before: Chain[EndpointRequest],
-    after: Chain[EndpointRequest],
-    predicate: S.Predicate
+                                 current: EndpointRequestOld,
+                                 currentRequestIndex: Int,
+                                 beforeOffset: Int,
+                                 before: Chain[EndpointRequestOld],
+                                 after: Chain[EndpointRequestOld],
+                                 predicate: S.Predicate
   ): SymbolConverterResult[R.Predicate] = {
     val resolveSymbol    = convertToRuntimeSymbol(current, currentRequestIndex, beforeOffset, before, after, _: S.Symbol)
     val resolvePredicate = convertToRuntimePredicate(current, currentRequestIndex, beforeOffset, before, after, _: S.Predicate)
@@ -47,12 +47,12 @@ object SymbolConverter {
    * @return None if the symbol references unresolvable requests. Some otherwise.
    */
   def convertToRuntimeSymbol(
-    current: EndpointRequest,
-    currentRequestIndex: Int,
-    beforeOffset: Int,
-    before: Chain[EndpointRequest],
-    after: Chain[EndpointRequest],
-    symbol: S.Symbol
+                              current: EndpointRequestOld,
+                              currentRequestIndex: Int,
+                              beforeOffset: Int,
+                              before: Chain[EndpointRequestOld],
+                              after: Chain[EndpointRequestOld],
+                              symbol: S.Symbol
   ): SymbolConverterResult[R.Symbol] = {
     val resolveSymbol       = convertToRuntimeSymbol(current, currentRequestIndex, beforeOffset, before, after, _: S.Symbol)
     val resolvePredicate    = convertToRuntimePredicate(current, currentRequestIndex, beforeOffset, before, after, _: S.Predicate)
@@ -65,14 +65,14 @@ object SymbolConverter {
           else
             (before, UnresolvedReverseLookup, beforeOffset)
 
-        def findRequestIndex(r: EndpointRequest): SymbolConverterResult[Int] =
+        def findRequestIndex(r: EndpointRequestOld): SymbolConverterResult[Int] =
           scope
             .zipWithIndex
             .collectFirst { case (request, index) if request === r => index + indexOffset }
             .toValidNec(unresolved)
 
         val runtimeParameters  = schemaParameters.traverse(resolveSymbol)
-        val targetRequest      = runtimeParameters.map(EndpointRequest(endpointId, _))
+        val targetRequest      = runtimeParameters.map(EndpointRequestOld(endpointId, _))
         val targetRequestIndex = targetRequest.andThen(findRequestIndex)
 
         targetRequestIndex.map(R.ResponseBody)

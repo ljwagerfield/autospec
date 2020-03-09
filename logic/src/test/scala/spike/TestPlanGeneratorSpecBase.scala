@@ -7,7 +7,7 @@ import spike.runtime._
 import spike.schema.ApplicationSchema
 
 abstract class TestPlanGeneratorSpecBase extends BaseSpec {
-  def checks(expected: Predicate*)(actual: (EndpointRequestId, EndpointRequest, Set[Predicate]))(implicit pos: source.Position): Unit = {
+  def checks(expected: Predicate*)(actual: (EndpointRequestId, EndpointRequestOld, Set[Predicate]))(implicit pos: source.Position): Unit = {
     val (requestId, request, actualConditions) = actual
     val expectedConditions = expected.toSet
     val missing            = expectedConditions -- actualConditions
@@ -39,7 +39,7 @@ abstract class TestPlanGeneratorSpecBase extends BaseSpec {
     }
   }
 
-  def test(requests: (EndpointRequest, ((EndpointRequestId, EndpointRequest, Set[Predicate])) => Unit)*)(implicit schema: ApplicationSchema): Unit = {
+  def test(requests: (EndpointRequestOld, ((EndpointRequestId, EndpointRequestOld, Set[Predicate])) => Unit)*)(implicit schema: ApplicationSchema): Unit = {
     val testPathId = TestPathId("example-test")
 
     val conditions = requests

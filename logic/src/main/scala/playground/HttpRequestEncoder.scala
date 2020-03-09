@@ -1,15 +1,15 @@
-package spike.runtime
+package playground
 
 import io.circe.Json
 import org.http4s
+import org.http4s._
 import org.http4s.headers.{`Content-Length`, `Content-Type`}
 import org.http4s.implicits._
-import org.http4s._
 import spike.schema.HttpMethod._
 import spike.schema._
 
 object HttpRequestEncoder {
-  def encode[F[_]](schema: ApplicationSchema, history: List[EndpointRequestResponse], request: EndpointRequest): Request[F] = {
+  def encode[F[_]](schema: ApplicationSchema, request: EndpointRequest): Request[F] = {
     val endpoint   = schema.endpoint(request.endpointId)
     val api        = schema.api(endpoint.apiId)
     val method     = endpoint.method match {
@@ -23,7 +23,6 @@ object HttpRequestEncoder {
       request
         .parameterValues
         .view
-        .mapValues(SymbolResolver.resolveSymbol(history, _))
         .toList
         .map { case (name, json) => endpoint.parameter(name) -> json }
         .groupBy { case (parameter, _) => parameter.location }

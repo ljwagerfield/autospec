@@ -44,6 +44,10 @@ object SchemaSymbols extends CommonSymbols {
   case class Endpoint(endpointId: EndpointId, parameters: scala.collection.immutable.Map[EndpointParameterName, Symbol], evaluateAfterExecution: Boolean) extends Symbol // 'stateAfterExecution' should be set to 'false' for preconditions. If set to 'true' it will never be checked.
 }
 
+object ResolvedSymbols extends CommonSymbols {
+  case class Parameter(name: EndpointParameterName) extends Symbol
+}
+
 object RuntimeSymbols extends CommonSymbols {
   case class ResponseBody(requestIndex: Int) extends Symbol
   case class StatusCode(requestIndex: Int) extends Symbol
