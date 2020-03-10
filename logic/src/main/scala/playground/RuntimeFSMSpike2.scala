@@ -12,6 +12,8 @@ import spike.common.MathUtils
 import spike.runtime.EndpointRequestExecutor
 import spike.schema._
 import spike.{ResolvedSymbols => R, SchemaSymbols => S}
+import spike.ResolvedSymbols.{Predicate => RP}
+import spike.SchemaSymbols.{Predicate => SP}
 
 import scala.util.Random
 
@@ -148,21 +150,56 @@ class RuntimeFSMSpike2(requestExecutor: EndpointRequestExecutor)(implicit schedu
   }
 
   private def getRandomValues(parameterType: EndpointParameter): List[Json] = {
-
+    // Todo: add type information to 'EndpointParameter' such that we can generate sensible values.
   }
 
-  private def resolvePredicate(predicate: R.Predicate, resolvedParameters: Map[EndpointParameterName, Json]): Boolean = {
+  private def resolvePredicate(predicate: R.Predicate, resolvedParams: Map[EndpointParameterName, Json]): Boolean = {
 
   }
 
   private def resolveEndpointsInPredicate(
     predicate: S.Predicate,
     potentialDependencies: List[EndpointRequestResponse],
-    resolvedParameters: Map[EndpointParameterName, Json]
+    resolvedParams: Map[EndpointParameterName, Json]
   ): Option[(R.Predicate, Map[EndpointParameterName, Json])] = {
-    // Constrain endpoint params to either literals, params, or other endpoints, but cannot be anything else.
-    // Otherwise we'd need to deal with situations like this: 'endpoint(concat(param1, param2))'
+    type Convert[A, B] = (A, Map[EndpointParameterName, Json]) => Option[(B, Map[EndpointParameterName, Json])]
 
+    implicit val convertSymbol: Convert[S.Symbol, R.Symbol] =
+      resolveEndpointsInSymbol(_, potentialDependencies, _)
+
+    implicit val convertPredicate: Convert[S.Predicate, R.Predicate] =
+      resolveEndpointsInPredicate(_, potentialDependencies, _)
+
+    def convert2[A, B, A2, B2](newType: (A2, B2) => R.Predicate, a: A, b: B)
+                             (implicit atoa: Convert[A, A2], btob: Convert[B, B2]) =
+      for {
+        (a2, resolvedParams2) <- atoa(a, resolvedParams)
+        (b2, resolvedParams3) <- btob(b, resolvedParams2)
+      } yield {
+        newType(a2, b2) -> resolvedParams3
+      }
+
+    def convert[A, A2](newType: (A2) => R.Predicate, a: A)(implicit atoa: Convert[A, A2]) =
+      atoa(a, resolvedParams).map { case (a2, resolvedParams2) =>
+        newType(a2) -> resolvedParams2
+      }
+
+    predicate match {
+      case SP.Equals(left, right)        => convert2(RP.Equals, left, right)
+      case SP.And(left, right)           => convert2(RP.And, left, right)
+      case SP.Or(left, right)            => convert2(RP.Or, left, right)
+      case SP.Not(pred)                  => convert(RP.Not, pred)
+      case SP.Exists(symbol, pred)       => convert2(RP.Exists, symbol, pred)
+      case SP.Contains(collection, item) => convert2(RP.Contains, collection, item)
+    }
+  }
+
+  private def resolveEndpointsInSymbol(
+    symbol: S.Symbol,
+    potentialDependencies: List[EndpointRequestResponse],
+    resolvedParams: Map[EndpointParameterName, Json]
+  ): Option[(R.Symbol, Map[EndpointParameterName, Json])] = {
+    // 1. Substitute 'Endpoint(...)' with 'Literal(
 
     // IF resolvedParameters already contains an entry, then see if that value matches the value in the potentialDependencies'
     // parameter list, and if so, use it. Only error/return none if a resolvedParameters exists that doesn't match the param
@@ -171,12 +208,14 @@ class RuntimeFSMSpike2(requestExecutor: EndpointRequestExecutor)(implicit schedu
     // 1. Substitute 'Endpoint(...)' with 'Literal(
   }
 
-  private def resolveEndpointsInSymbol(
-    symbol: S.Symbol,
+  private def resolveEndpoint(
+    endpoint: S.Endpoint,
     potentialDependencies: List[EndpointRequestResponse],
-    resolvedParameters: Map[EndpointParameterName, Json]
-  ): Option[(R.Symbol, Map[EndpointParameterName, Json])] = {
-    // 1. Substitute 'Endpoint(...)' with 'Literal(
+    resolvedParams: Map[EndpointParameterName, Json]
+  ): Option[(R.Literal, Map[EndpointParameterName, Json])] = {
+    // Substitute 'Endpoint(...)' with 'Literal(
+    // throw exception if endpoint params are none of: literal, param, or other endpoint.
+    // Otherwise we'd need to deal with situations like this: 'endpoint(concat(param1, param2))'
   }
 
   private def endpointWeight(
