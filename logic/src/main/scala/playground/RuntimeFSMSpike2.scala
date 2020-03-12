@@ -11,8 +11,8 @@ import spike.common.FunctorExtensions._
 import spike.common.MathUtils
 import spike.runtime.EndpointRequestExecutor
 import spike.schema._
-import spike.{ResolvedSymbols => R, SchemaSymbols => S}
-import spike.ResolvedSymbols.{Predicate => RP}
+import spike.{ResolvedPreconditionSymbols => R, SchemaSymbols => S}
+import spike.ResolvedPreconditionSymbols.{Predicate => RP}
 import spike.SchemaSymbols.{Predicate => SP}
 
 import scala.util.Random
@@ -162,28 +162,8 @@ class RuntimeFSMSpike2(requestExecutor: EndpointRequestExecutor)(implicit schedu
     potentialDependencies: List[EndpointRequestResponse],
     resolvedParams: Map[EndpointParameterName, Json]
   ): Option[(R.Predicate, Map[EndpointParameterName, Json])] = {
-    type Convert[A, B] = (A, Map[EndpointParameterName, Json]) => Option[(B, Map[EndpointParameterName, Json])]
-
-    implicit val convertSymbol: Convert[S.Symbol, R.Symbol] =
-      resolveEndpointsInSymbol(_, potentialDependencies, _)
-
-    implicit val convertPredicate: Convert[S.Predicate, R.Predicate] =
-      resolveEndpointsInPredicate(_, potentialDependencies, _)
-
-    def convert2[A, B, A2, B2](newType: (A2, B2) => R.Predicate, a: A, b: B)
-                             (implicit atoa: Convert[A, A2], btob: Convert[B, B2]) =
-      for {
-        (a2, resolvedParams2) <- atoa(a, resolvedParams)
-        (b2, resolvedParams3) <- btob(b, resolvedParams2)
-      } yield {
-        newType(a2, b2) -> resolvedParams3
-      }
-
-    def convert[A, A2](newType: (A2) => R.Predicate, a: A)(implicit atoa: Convert[A, A2]) =
-      atoa(a, resolvedParams).map { case (a2, resolvedParams2) =>
-        newType(a2) -> resolvedParams2
-      }
-
+    val symbolConverter = new SymbolConverter(potentialDependencies, resolvedParams)
+    import symbolConverter._
     predicate match {
       case SP.Equals(left, right)        => convert2(RP.Equals, left, right)
       case SP.And(left, right)           => convert2(RP.And, left, right)
@@ -199,21 +179,57 @@ class RuntimeFSMSpike2(requestExecutor: EndpointRequestExecutor)(implicit schedu
     potentialDependencies: List[EndpointRequestResponse],
     resolvedParams: Map[EndpointParameterName, Json]
   ): Option[(R.Symbol, Map[EndpointParameterName, Json])] = {
+    val symbolConverter = new SymbolConverter(potentialDependencies, resolvedParams)
+    import symbolConverter._
+    symbol match {
+      case S.ResponseBody | S.StatusCode => throw new Exception(s"Preconditions cannot contain $symbol symbols.")
+      case endpoint: S.Endpoint          => resolveEndpointSymbol(endpoint, potentialDependencies, resolvedParams)
+
+      case S.Parameter(name) =>
+        Some {
+          val paramOrResolved =
+            resolvedParams
+              .get(name)
+              .map(json => R.Literal(json))
+              .getOrElse(R.Parameter(name))
+
+          paramOrResolved -> resolvedParams
+        }
+
+      case S.Literal(value)            => Some(R.Literal(value) -> resolvedParams)
+      case S.LambdaParameter(distance) => Some(R.LambdaParameter(distance) -> resolvedParams)
+      case S.Map(symbol, path)         => convert2(R.Map, symbol, path)
+      case S.FlatMap(symbol, path)     => convert2(R.FlatMap, symbol, path)
+      case S.Flatten(symbol)           => convert(R.Flatten, symbol)
+      case S.Find(symbol, predicate)   => convert2(R.Find, symbol, predicate)
+      case S.Count(symbol)             => convert(R.Count, symbol)
+      case S.Distinct(symbol)          => convert(R.Distinct, symbol)
+      case S.Prepend(item, collection) => convert2(R.Prepend, item, collection)
+      case S.Append(collection, item)  => convert2(R.Append, collection, item)
+      case S.Concat(left, right)       => convert2(R.Concat, left, right)
+      case predicate: S.Predicate      => resolveEndpointsInPredicate(predicate, potentialDependencies, resolvedParams)
+    }
+  }
+
+  private def resolveEndpointSymbol(
+    endpoint: S.Endpoint,
+    potentialDependencies: List[EndpointRequestResponse],
+    resolvedParams: Map[EndpointParameterName, Json]
+  ): Option[(R.Literal, Map[EndpointParameterName, Json])] = {
+    // 1.
+
+    // TODO:is there a problem if there's only 1 dependency for each endpoint. E.g.
+    // requires(getNeg(paramA).groupId === getNeg(paramB).groupId)
+    // In this scenario, we have 2 unique variables that we want permutations of... we don't want paramA and paramB to always be equal (they will currently).
+
+    endpoint.parameters
+
     // 1. Substitute 'Endpoint(...)' with 'Literal(
 
     // IF resolvedParameters already contains an entry, then see if that value matches the value in the potentialDependencies'
     // parameter list, and if so, use it. Only error/return none if a resolvedParameters exists that doesn't match the param
     // in the potentialDependencies.
 
-    // 1. Substitute 'Endpoint(...)' with 'Literal(
-  }
-
-  private def resolveEndpoint(
-    endpoint: S.Endpoint,
-    potentialDependencies: List[EndpointRequestResponse],
-    resolvedParams: Map[EndpointParameterName, Json]
-  ): Option[(R.Literal, Map[EndpointParameterName, Json])] = {
-    // Substitute 'Endpoint(...)' with 'Literal(
     // throw exception if endpoint params are none of: literal, param, or other endpoint.
     // Otherwise we'd need to deal with situations like this: 'endpoint(concat(param1, param2))'
   }
@@ -241,5 +257,30 @@ class RuntimeFSMSpike2(requestExecutor: EndpointRequestExecutor)(implicit schedu
     //         but only N/(N-1)x chance than second-least-frequent endpoint).
     //         Empirical performance (lower is better): 5,000 requests to find all unique 3-strands in a sample API.
     maxPenalty - count
+  }
+
+  class SymbolConverter(potentialDependencies: List[EndpointRequestResponse], resolvedParams: Map[EndpointParameterName, Json]) {
+    type Convert[A, B] = (A, Map[EndpointParameterName, Json]) => Option[(B, Map[EndpointParameterName, Json])]
+
+    implicit val convertSymbol: Convert[S.Symbol, R.Symbol] =
+      resolveEndpointsInSymbol(_, potentialDependencies, _)
+
+    implicit val convertPredicate: Convert[S.Predicate, R.Predicate] =
+      resolveEndpointsInPredicate(_, potentialDependencies, _)
+
+    def convert[A, A2, R](newType: (A2) => R, a: A)
+                         (implicit atoa: Convert[A, A2]): Option[(R, Map[EndpointParameterName, Json])] =
+      atoa(a, resolvedParams).map { case (a2, resolvedParams2) =>
+        newType(a2) -> resolvedParams2
+      }
+
+    def convert2[A, B, A2, B2, R](newType: (A2, B2) => R, a: A, b: B)
+                                 (implicit atoa: Convert[A, A2], btob: Convert[B, B2]): Option[(R, Map[EndpointParameterName, Json])] =
+      for {
+        (a2, resolvedParams2) <- atoa(a, resolvedParams)
+        (b2, resolvedParams3) <- btob(b, resolvedParams2)
+      } yield {
+        newType(a2, b2) -> resolvedParams3
+      }
   }
 }

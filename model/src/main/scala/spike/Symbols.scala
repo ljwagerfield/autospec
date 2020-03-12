@@ -4,7 +4,7 @@ import io.circe.Json
 import spike.schema.{EndpointId, EndpointParameterName}
 
 sealed trait CommonSymbols {
-  sealed trait Symbol
+  sealed trait Symbol extends Product with Serializable
 
   // Leafs
   case class Literal(value: Json) extends Symbol
@@ -44,7 +44,7 @@ object SchemaSymbols extends CommonSymbols {
   case class Endpoint(endpointId: EndpointId, parameters: scala.collection.immutable.Map[EndpointParameterName, Symbol], evaluateAfterExecution: Boolean) extends Symbol // 'stateAfterExecution' should be set to 'false' for preconditions. If set to 'true' it will never be checked.
 }
 
-object ResolvedSymbols extends CommonSymbols {
+object ResolvedPreconditionSymbols extends CommonSymbols {
   case class Parameter(name: EndpointParameterName) extends Symbol
 }
 
