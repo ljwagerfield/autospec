@@ -91,6 +91,7 @@ object App extends IOApp {
         List(
           EndpointParameter(
             EndpointParameterName("value"),
+            EndpointParameterType.Int32,
             EndpointParameterLocation.Body,
             EndpointParameterSerialization.ToString("text/plain")
           )

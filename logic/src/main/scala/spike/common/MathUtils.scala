@@ -1,6 +1,8 @@
 package spike.common
 
 import scala.util.Random
+import cats.implicits._
+import alleycats.std.all._
 
 object MathUtils {
   def weightedRandom[A](items: List[A], weight: A => Int): Option[A] = {
@@ -26,10 +28,9 @@ object MathUtils {
    * permutations(List(List(1,2,3), List(10,20,30)))
    * -> List(List(1, 10), List(2, 10), List(3, 10), List(1, 20), List(2, 20), List(3, 20), List(1, 30), List(2, 30), List(3, 30))
    */
-  def cartesianProduct[A](lists: List[List[A]]): List[List[A]] =
-    lists match {
-      case Nil          => Nil
-      case x :: Nil     => x.map(_ :: Nil)
-      case head :: tail => cartesianProduct(tail).flatMap(x => head.map(_ :: x))
-    }
+  def cartesianProduct[V](lists: List[List[V]]): List[List[V]] =
+    lists.sequence
+
+  def cartesianProduct[K, V](lists: Map[K, List[V]]): List[Map[K, V]] =
+    lists.sequence
 }

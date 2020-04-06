@@ -75,6 +75,7 @@ lazy val commonScalaSettings = commonSettings ++: Seq(
     "org.mockito"               % "mockito-all"  % "1.10.19"       % Test,
     "com.softwaremill.macwire" %% "macros"       % "2.3.3"         % Provided,  // Provided because it's used at compile-time only.
     "com.github.ghik"          %% "silencer-lib" % silencerVersion % Provided cross CrossVersion.full,
+    compilerPlugin("org.typelevel"   %% "kind-projector"  % "0.10.3"),
     compilerPlugin("com.github.ghik" %% "silencer-plugin" % silencerVersion cross CrossVersion.full) // Allows silencing warning for generated files.
   )
 )

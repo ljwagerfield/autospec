@@ -26,6 +26,7 @@ object ListPairApi {
         List(
           EndpointParameter(
             EndpointParameterName("value"),
+            EndpointParameterType.Int32,
             EndpointParameterLocation.Body,
             EndpointParameterSerialization.ToString("text/plain")
           )
@@ -56,6 +57,7 @@ object ListPairApi {
         List(
           EndpointParameter(
             EndpointParameterName("value"),
+            EndpointParameterType.Int32,
             EndpointParameterLocation.Body,
             EndpointParameterSerialization.ToString("text/plain")
           )
@@ -102,6 +104,7 @@ object ListPairApi {
         List(
           EndpointParameter(
             EndpointParameterName("value"),
+            EndpointParameterType.Int32,
             EndpointParameterLocation.Body,
             EndpointParameterSerialization.ToString("text/plain")
           )
@@ -132,6 +135,7 @@ object ListPairApi {
         List(
           EndpointParameter(
             EndpointParameterName("value"),
+            EndpointParameterType.Int32,
             EndpointParameterLocation.Body,
             EndpointParameterSerialization.ToString("text/plain")
           )

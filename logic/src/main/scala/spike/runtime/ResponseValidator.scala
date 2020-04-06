@@ -2,6 +2,7 @@ package spike.runtime
 
 import cats.implicits._
 import cats.data.NonEmptyList
+import spike.runtime.resolvers.RuntimeSymbolResolver
 import spike.schema.ConditionId
 
 object ResponseValidator {
@@ -11,7 +12,7 @@ object ResponseValidator {
     request
       .checks
       .view
-      .mapValues(SymbolResolver.resolvePredicate(fullHistory, _))
+      .mapValues(RuntimeSymbolResolver.resolvePredicate(_, fullHistory))
       .toList
       .collect { case (conditionId, satisfied) if !satisfied => conditionId}
       .toNel

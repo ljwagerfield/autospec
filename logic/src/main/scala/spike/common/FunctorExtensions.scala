@@ -29,4 +29,17 @@ object FunctorExtensions {
     def tail: Chain[A] =
       value.uncons.fold(Chain.empty[A])(_._2)
   }
+
+  implicit class RichMap[K, V](val value: Map[K, V]) extends AnyVal {
+    def partitionEither[A, B](callback: V => Either[A, B]): (Map[K, A], Map[K, B]) = {
+      val (aList, bList) = value.toList.partitionEither { case (k, v) => callback(v).fold(x => Left(k -> x), x => Right(k -> x)) }
+      (
+        aList.toMap,
+        bList.toMap
+      )
+    }
+
+    def swap: Map[V, List[K]] =
+      value.groupMap(_._2)(_._1).view.mapValues(_.toList).toMap
+  }
 }

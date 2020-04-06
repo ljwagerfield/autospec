@@ -4,6 +4,8 @@ import io.circe.Json
 import spike.schema.{EndpointId, EndpointParameterName}
 
 sealed trait CommonSymbols {
+  type OwnSymbols <: Symbol
+
   sealed trait Symbol extends Product with Serializable
 
   // Leafs
@@ -37,18 +39,40 @@ sealed trait CommonSymbols {
   }
 }
 
-object SchemaSymbols extends CommonSymbols {
-  case class Parameter(name: EndpointParameterName) extends Symbol
-  case object ResponseBody extends Symbol
-  case object StatusCode extends Symbol
-  case class Endpoint(endpointId: EndpointId, parameters: scala.collection.immutable.Map[EndpointParameterName, Symbol], evaluateAfterExecution: Boolean) extends Symbol // 'stateAfterExecution' should be set to 'false' for preconditions. If set to 'true' it will never be checked.
+object BaseSymbols extends CommonSymbols {
+  // ------------------------------------
+  // Must not contain any custom symbols!
+  // ------------------------------------
+  // The purpose of 'BaseSymbols' is to provide a concrete common type the other symbol families can be converted to,
+  // such that common code can be safely written that works against all families (requires users to resolve custom
+  // types to literals first, though).
+  // ------------------------------------
 }
 
-object ResolvedPreconditionSymbols extends CommonSymbols {
-  case class Parameter(name: EndpointParameterName) extends Symbol
+object SchemaSymbols extends CommonSymbols {
+  type OwnSymbols = SchemaSymbol
+
+  sealed trait SchemaSymbol extends Symbol
+
+  case class Parameter(name: EndpointParameterName) extends SchemaSymbol
+  case object ResponseBody extends SchemaSymbol
+  case object StatusCode extends SchemaSymbol
+  case class Endpoint(endpointId: EndpointId, parameters: scala.collection.immutable.Map[EndpointParameterName, Symbol], evaluateAfterExecution: Boolean) extends SchemaSymbol // 'stateAfterExecution' should be set to 'false' for preconditions. If set to 'true' it will never be checked.
+}
+
+object IntermediateSymbols extends CommonSymbols {
+  type OwnSymbols = ResolvedPreconditionSymbol
+
+  sealed trait ResolvedPreconditionSymbol extends Symbol
+
+  case class Parameter(name: EndpointParameterName) extends ResolvedPreconditionSymbol
 }
 
 object RuntimeSymbols extends CommonSymbols {
-  case class ResponseBody(requestIndex: Int) extends Symbol
-  case class StatusCode(requestIndex: Int) extends Symbol
+  type OwnSymbols = RuntimeSymbol
+
+  sealed trait RuntimeSymbol extends Symbol
+
+  case class ResponseBody(requestIndex: Int) extends RuntimeSymbol
+  case class StatusCode(requestIndex: Int) extends RuntimeSymbol
 }

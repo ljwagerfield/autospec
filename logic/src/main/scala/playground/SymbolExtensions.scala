@@ -3,9 +3,6 @@ package playground
 import spike.{SchemaSymbols => S}
 import spike.SchemaSymbols.{Predicate => SP}
 
-import spike.{ResolvedPreconditionSymbols => R}
-import spike.ResolvedPreconditionSymbols.{Predicate => RP}
-
 object SymbolExtensions {
   implicit class RichSchemaSymbol(val symbol: S.Symbol) extends AnyVal {
     def toList: List[S.Symbol] = {

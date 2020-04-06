@@ -21,11 +21,13 @@ object MapApi {
         List(
           EndpointParameter(
             EndpointParameterName("key"),
+            EndpointParameterType.String,
             EndpointParameterLocation.Querystring,
             EndpointParameterSerialization.ToString("text/plain")
           ),
           EndpointParameter(
             EndpointParameterName("value"),
+            EndpointParameterType.Int32,
             EndpointParameterLocation.Querystring,
             EndpointParameterSerialization.ToString("text/plain")
           )

@@ -52,7 +52,7 @@ object ClientMacros {
 
     c.Expr(
       q"""
-        EndpointRequest(
+        EndpointRequestOld(
           EndpointId(${enclosingMethod.name.toString}),
           $parameterMap
         )

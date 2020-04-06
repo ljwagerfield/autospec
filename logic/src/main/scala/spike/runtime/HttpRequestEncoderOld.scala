@@ -5,6 +5,7 @@ import org.http4s
 import org.http4s.headers.{`Content-Length`, `Content-Type`}
 import org.http4s.implicits._
 import org.http4s._
+import spike.runtime.resolvers.RuntimeSymbolResolver
 import spike.schema.HttpMethod._
 import spike.schema._
 
@@ -23,7 +24,7 @@ object HttpRequestEncoderOld {
       request
         .parameterValues
         .view
-        .mapValues(SymbolResolver.resolveSymbol(history, _))
+        .mapValues(RuntimeSymbolResolver.resolveSymbol(_, history))
         .toList
         .map { case (name, json) => endpoint.parameter(name) -> json }
         .groupBy { case (parameter, _) => parameter.location }
