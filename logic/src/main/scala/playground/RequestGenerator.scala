@@ -7,14 +7,14 @@ import monix.eval.Task
 import spike.IntermediateSymbols.{Predicate => IP}
 import spike.SchemaSymbols.{Predicate => SP}
 import spike.common.FunctorExtensions._
-import spike.common.MathUtils
+import spike.common.MathUtils._
 import spike.runtime.resolvers.IntermediateSymbolResolver
 import spike.schema._
 import spike.{IntermediateSymbols => I, SchemaSymbols => S}
 
 import scala.util.Random
 
-class RequestGenerator(responseRepository: ResponseRepository, opportunityRepository: OpportunitiesRepository, config: Config) {
+class RequestGenerator(responseRepository: RequestResponseRepository, opportunityRepository: OpportunitiesRepository, config: Config) {
   private case class ApplicationState(
     previousResponses: Map[EndpointId, List[EndpointRequestResponse]],
     previousOpportunities: List[Opportunities]
@@ -29,13 +29,13 @@ class RequestGenerator(responseRepository: ResponseRepository, opportunityReposi
 
   private val maxHistory = config.maxHistorySizeForRequestGenerator
 
-  def nextRequest(schema: ApplicationSchema): Task[Option[RequestGeneratorResult]] =
+  def nextRequest(session: Session): Task[Option[RequestGeneratorResult]] =
     for {
-      previousResponses     <- responseRepository.getPreviousResponses(maxHistory)
-      previousOpportunities <- opportunityRepository.getPreviousOpportunities(maxHistory)
+      previousResponses     <- responseRepository.getPreviousResponses(session.id, maxHistory)
+      previousOpportunities <- opportunityRepository.getPreviousOpportunities(session.id, maxHistory)
     } yield {
       nextRequest(
-        schema,
+        session.schema,
         ApplicationState(
           previousResponses,
           previousOpportunities
@@ -45,7 +45,7 @@ class RequestGenerator(responseRepository: ResponseRepository, opportunityReposi
 
   private def nextRequest(schema: ApplicationSchema, state: ApplicationState): Option[RequestGeneratorResult] = {
     val callableEndpoints = getCallableEndpoints(schema, state)
-    val chosenEndpointOpt = MathUtils.weightedRandom[CallableEndpoint](callableEndpoints, x => endpointWeight(state, x.endpointId))
+    val chosenEndpointOpt = weightedRandom(callableEndpoints)(x => endpointWeight(state, x.endpointId))
     chosenEndpointOpt.map { chosenEndpoint =>
       RequestGeneratorResult(
         Opportunities(
@@ -94,7 +94,7 @@ class RequestGenerator(responseRepository: ResponseRepository, opportunityReposi
         }
 
       val paramCombinations =
-        MathUtils.cartesianProduct(
+        cartesianProduct(
           paramsFromEndpoints ::: paramsFromRandom
         )
 
@@ -151,11 +151,10 @@ class RequestGenerator(responseRepository: ResponseRepository, opportunityReposi
       case Single         => List(-3, -2, -1, -0.1F, 0, 0.1F, 1, 2, 3, Float.MinValue, Float.MaxValue).map(x => Json.fromFloat(x).get)
       case Double         => List(-3, -2, -1, -0.1D, 0, 0.1D, 1, 2, 3, scala.Double.MinValue, scala.Double.MaxValue).map(x => Json.fromDouble(x).get)
       case Object(fields) =>
-        MathUtils
-          .cartesianProduct(
-            fields.view.mapValues(x => getParameterDomain(endpointId, x)).toMap
-          )
-          .map(Json.fromFields)
+        cartesianProduct(
+          fields.view.mapValues(x => getParameterDomain(endpointId, x)).toMap
+        )
+        .map(Json.fromFields)
       case Array(elementTypes) =>
         val values =
           NonEmptyList

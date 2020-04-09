@@ -118,7 +118,8 @@ lazy val model = (project in file("model"))
     name                 := "spike-model",
     libraryDependencies ++= Seq(
       "org.typelevel"   %% "cats-core"                % catsVersion,
-      "io.circe"        %% "circe-core"               % circeVersion
+      "io.circe"        %% "circe-core"               % circeVersion,
+      "de.huxhorn.sulky" % "de.huxhorn.sulky.ulid"    % "8.2.0"
     )
   )
 

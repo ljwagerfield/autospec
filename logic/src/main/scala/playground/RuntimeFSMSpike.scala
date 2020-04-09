@@ -6,7 +6,7 @@ import com.github.ghik.silencer.silent
 import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
-import spike.common.MathUtils
+import spike.common.MathUtils.weightedRandom
 
 // Until it looks like a Dinosaur...
 // [X] Make it run.
@@ -153,7 +153,7 @@ object RuntimeFSMSpike extends App {
 
   def nextRequest(state: State, history: List[(Set[EndpointId], Request)]): (Set[EndpointId], Request) = {
     val callableEndpoints = endpoints.filter(_.isCallable(state))
-    val chosenEndpoint    = MathUtils.weightedRandom(callableEndpoints, endpointWeight(state, history, _)).get
+    val chosenEndpoint    = weightedRandom(callableEndpoints)(endpointWeight(state, history, _)).get
     (callableEndpoints.map(_.name).toSet, chosenEndpoint.name)
   }
 

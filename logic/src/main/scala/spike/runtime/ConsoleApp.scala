@@ -9,14 +9,6 @@ import spike.schema.ApplicationSchema
 class ConsoleApp()(implicit scheduler: Scheduler) {
   private val printer: SymbolPrinter = ScalaSymbolPrinter
 
-  def run(schema: ApplicationSchema): Task[Unit] =
-    run(
-      TestPlanGenerator.generate(
-        schema,
-        TestPathGenerator.generate(schema)
-      )
-    )
-
   def run(schema: ApplicationSchema, paths: List[TestPath]): Task[Unit] =
     run(
       TestPlanGenerator.generate(

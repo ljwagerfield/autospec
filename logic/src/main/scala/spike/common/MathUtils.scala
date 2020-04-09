@@ -5,7 +5,7 @@ import cats.implicits._
 import alleycats.std.all._
 
 object MathUtils {
-  def weightedRandom[A](items: List[A], weight: A => Int): Option[A] = {
+  def weightedRandom[A](items: List[A])(weight: A => Int): Option[A] = {
     var totalWeight = 0
     val weightedItems =
       items.map { item =>

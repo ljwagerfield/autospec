@@ -4,11 +4,15 @@ import cats.effect.concurrent.Ref
 import monix.eval.Task
 
 class OpportunitiesRepository {
-  private val items: Ref[Task, List[Opportunities]] = Ref.unsafe[Task, List[Opportunities]](Nil)
+  private val sessionsRef: Ref[Task, Map[SessionId, List[Opportunities]]] = Ref.unsafe[Task, Map[SessionId, List[Opportunities]]](Map.empty)
 
-  def addOpportunities(opportunities: Opportunities): Task[Unit] =
-    items.update(opportunities :: _) // Todo: optimisation -- use Queue and drop last item if over 'config.maxHistorySizeForRequestGenerator'.
+  def saveOpportunities(sessionId: SessionId, opportunities: Opportunities): Task[Unit] =
+    sessionsRef.update { sessions =>
+      val currentSession = sessions.getOrElse(sessionId, Nil)
+      val updatedSession = opportunities :: currentSession
+      sessions ++ Map(sessionId -> updatedSession)
+    }
 
-  def getPreviousOpportunities(limit: Int): Task[List[Opportunities]] =
-    items.get.map(_.take(limit))
+  def getPreviousOpportunities(sessionId: SessionId, limit: Int): Task[List[Opportunities]] =
+    sessionsRef.get.map(_.getOrElse(sessionId, Nil).take(limit))
 }

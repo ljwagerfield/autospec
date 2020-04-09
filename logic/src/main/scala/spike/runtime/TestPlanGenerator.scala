@@ -165,12 +165,12 @@ object TestPlanGenerator {
   private def mergePostconditions(a: PostconditionsByRequest, b: PostconditionsByRequest): PostconditionsByRequest =
     (a.toList ::: b.toList).groupMapReduce(_._1)(_._2)(_ ++ _)
 
-  case class State(
-                    currentRequestIndex: Int,
-                    preconditionOffset: Int,
-                    preconditionScope: Chain[EndpointRequestOld],
-                    postconditionScope: Chain[EndpointRequestOld],
-                    requests: Chain[EndpointRequestWithChecks],
-                    deferredPostconditions: PostconditionsByRequest
+  private case class State(
+    currentRequestIndex: Int,
+    preconditionOffset: Int,
+    preconditionScope: Chain[EndpointRequestOld],
+    postconditionScope: Chain[EndpointRequestOld],
+    requests: Chain[EndpointRequestWithChecks],
+    deferredPostconditions: PostconditionsByRequest
   )
 }
