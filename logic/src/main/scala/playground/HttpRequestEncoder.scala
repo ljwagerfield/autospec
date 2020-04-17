@@ -5,6 +5,7 @@ import org.http4s
 import org.http4s._
 import org.http4s.headers.{`Content-Length`, `Content-Type`}
 import org.http4s.implicits._
+import spike.runtime.EndpointRequest
 import spike.schema.HttpMethod._
 import spike.schema._
 

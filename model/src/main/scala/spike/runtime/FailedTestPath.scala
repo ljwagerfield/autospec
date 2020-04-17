@@ -4,10 +4,10 @@ import cats.data.NonEmptyList
 import spike.schema.ConditionId
 
 case class FailedTestPath(
-  lastRequestId: EndpointRequestId,
+  testPathId: TestPathId,
   failures: NonEmptyList[ConditionId],
   responses: NonEmptyList[EndpointResponse]
 ) {
-  def testPathId: TestPathId = lastRequestId.testPathId
-  def lastRequestIndex: Int  = lastRequestId.requestIndex
+  def lastRequestIndex: Int            = responses.size - 1
+  def lastRequestId: EndpointRequestIdOld = EndpointRequestIdOld(testPathId, lastRequestIndex)
 }

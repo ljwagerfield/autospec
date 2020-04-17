@@ -1,7 +1,7 @@
-package playground
+package spike.schema
 
-import spike.{SchemaSymbols => S}
 import spike.SchemaSymbols.{Predicate => SP}
+import spike.{SchemaSymbols => S}
 
 object SymbolExtensions {
   implicit class RichSchemaSymbol(val symbol: S.Symbol) extends AnyVal {

@@ -15,7 +15,7 @@ import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
 import spike.RuntimeSymbols
 import spike.SchemaSymbols._
-import spike.runtime.{ConsoleApp, EndpointRequestOld, TestPath, TestPathId}
+import spike.runtime.{ConsoleApp, EndpointRequestSymbolic, TestPathOld, TestPathId}
 import spike.schema._
 
 class SetController()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
@@ -113,32 +113,32 @@ object App extends IOApp {
   def run(args: List[String]): IO[ExitCode] = {
     implicit val scheduler: Scheduler = Scheduler.traced
 
-    val testPath = TestPath(
+    val testPath = TestPathOld(
       TestPathId("example-test"),
       Chain(
-        EndpointRequestOld(
+        EndpointRequestSymbolic(
           EndpointId("add"),
           scala.collection.immutable.Map(
             EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
           )
         ),
-        EndpointRequestOld(
+        EndpointRequestSymbolic(
           EndpointId("list"),
           scala.collection.immutable.Map.empty
         ),
-        EndpointRequestOld(
+        EndpointRequestSymbolic(
           EndpointId("add"),
           scala.collection.immutable.Map(
             EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
           )
         ),
-        EndpointRequestOld(
+        EndpointRequestSymbolic(
           EndpointId("add"),
           scala.collection.immutable.Map(
             EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(52))
           )
         ),
-        EndpointRequestOld(
+        EndpointRequestSymbolic(
           EndpointId("list"),
           scala.collection.immutable.Map.empty
         )

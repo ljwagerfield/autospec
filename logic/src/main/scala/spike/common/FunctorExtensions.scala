@@ -1,8 +1,8 @@
 package spike.common
 
 import cats.data.{Chain, EitherT, NonEmptyList}
-import cats.{Alternative, Bifoldable, FlatMap, Foldable}
 import cats.implicits._
+import cats.{Alternative, Bifoldable, FlatMap, Foldable, Monad, Monoid}
 import monix.eval.Task
 
 object FunctorExtensions {
@@ -13,6 +13,23 @@ object FunctorExtensions {
       val (b, c) = fa.partitionBifold(f)
       b.flatten -> c.flatten
     }
+
+    def findAfter(after: A => Boolean, select: A => Boolean)(implicit F: Foldable[F]): Option[A] =
+      fa.foldLeft((false: Boolean, None: Option[A])) { (accum, response) =>
+        val (isAfterRequest, result) = accum
+        if (result.nonEmpty)
+          accum
+        else if (isAfterRequest) {
+          if (select(response))
+            isAfterRequest -> Some(response)
+          else
+            accum
+        }
+        else if (select(response))
+          true -> None
+        else
+          accum
+      }._2
   }
 
   implicit class RichTask[A](val task: Task[A]) extends AnyVal {
@@ -30,6 +47,20 @@ object FunctorExtensions {
       value.uncons.fold(Chain.empty[A])(_._2)
   }
 
+  implicit class RichMapM[K, V, F[_]](val value: Map[K, F[V]]) extends AnyVal {
+    def merge(map: Map[K, F[V]])(implicit M: Monoid[F[V]]): Map[K, F[V]] =
+      map.foldLeft(value) { (result, kvp) =>
+        val (key, value) = kvp
+        result.merge(key, value)
+      }
+
+    def merge(key: K, values: F[V])(implicit M: Monoid[F[V]]): Map[K, F[V]] = {
+      val oldConditions = value.getOrElse(key, M.empty)
+      val newConditions = M.combine(oldConditions, values)
+      value ++ Map(key -> newConditions)
+    }
+  }
+
   implicit class RichMap[K, V](val value: Map[K, V]) extends AnyVal {
     def partitionEither[A, B](callback: V => Either[A, B]): (Map[K, A], Map[K, B]) = {
       val (aList, bList) = value.toList.partitionEither { case (k, v) => callback(v).fold(x => Left(k -> x), x => Right(k -> x)) }
@@ -39,7 +70,18 @@ object FunctorExtensions {
       )
     }
 
-    def swap: Map[V, List[K]] =
-      value.groupMap(_._2)(_._1).view.mapValues(_.toList).toMap
+    def partitionEitherM[A, B, F[_] : Monad](callback: V => F[Either[A, B]]): F[(Map[K, A], Map[K, B])] =
+      value
+        .toList
+        .partitionEitherM { case (k, v) => callback(v).map(_.fold(x => Left(k -> x), x => Right(k -> x))) }
+        .map { case (aList, bList) =>
+          (
+            aList.toMap,
+            bList.toMap
+          )
+        }
+
+    def swap: Map[V, Set[K]] =
+      value.groupMap(_._2)(_._1).view.mapValues(_.toSet).toMap
   }
 }

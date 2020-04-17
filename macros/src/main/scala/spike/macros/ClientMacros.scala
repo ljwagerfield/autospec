@@ -1,13 +1,13 @@
 package spike.macros
 
-import spike.runtime.EndpointRequestOld
+import spike.runtime.EndpointRequestSymbolic
 
 import scala.reflect.macros.blackbox
 
 object ClientMacros {
-  def endpointRequest(): EndpointRequestOld = macro endpointRequestImpl
+  def endpointRequest(): EndpointRequestSymbolic = macro endpointRequestImpl
 
-  def endpointRequestImpl(c: blackbox.Context)(): c.Expr[EndpointRequestOld] = {
+  def endpointRequestImpl(c: blackbox.Context)(): c.Expr[EndpointRequestSymbolic] = {
     import c.universe._
     val enclosingMethod = c.internal.enclosingOwner match {
       case m: MethodSymbol => m

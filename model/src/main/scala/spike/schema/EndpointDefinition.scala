@@ -1,6 +1,9 @@
 package spike.schema
 
-import spike.SchemaSymbols.Predicate
+import io.circe.Json
+import spike.SchemaSymbols.Predicate.{Equals, Or}
+import spike.SchemaSymbols.{Endpoint, Literal, Predicate, StatusCode}
+import spike.schema.SymbolExtensions._
 
 case class EndpointDefinition(
   id: EndpointId,
@@ -23,6 +26,27 @@ case class EndpointDefinition(
     }.toMap
 
   val parameterMap: Map[EndpointParameterName, EndpointParameter] = parameters.map(x => x.name -> x).toMap
+
+  /**
+   * Combines both preconditions and postconditions.
+   */
+  val conditions: Map[ConditionId, Predicate] = {
+    val preconditionsAsPredicates =
+      preconditionMap.view.mapValues { case Precondition(predicate, expectedStatus) =>
+        Or(
+          predicate,
+          Equals(
+            StatusCode,
+            Literal(Json.fromInt(expectedStatus))
+          )
+        )
+      }.toMap
+
+    postconditionMap ++ preconditionsAsPredicates
+  }
+
+  lazy val isMutating: Boolean =
+    !forcePure && postconditions.flatMap(_.toList).collectFirst { case Endpoint(_, _, true) => () }.nonEmpty
 
   def parameter(name: EndpointParameterName): EndpointParameter =
     parameterMap.getOrElse(name, throw new Exception(s"Cannot find parameter '$name' for endpoint '${id.value}' in schema."))

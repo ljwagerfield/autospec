@@ -2,7 +2,7 @@ package spike
 
 import spike.SchemaSymbols._
 import spike.macros.ClientMacros
-import spike.runtime.EndpointRequestOld
+import spike.runtime.EndpointRequestSymbolic
 import spike.schema._
 
 trait MapApi[A] {
@@ -63,7 +63,7 @@ object MapApi {
         )
       )
   }
-  object Client extends MapApi[EndpointRequestOld] {
+  object Client extends MapApi[EndpointRequestSymbolic] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
     def set(key: String, value: Int) = ClientMacros.endpointRequest()
     def list()                       = ClientMacros.endpointRequest()

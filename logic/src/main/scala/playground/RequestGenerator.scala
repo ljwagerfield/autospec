@@ -8,6 +8,7 @@ import spike.IntermediateSymbols.{Predicate => IP}
 import spike.SchemaSymbols.{Predicate => SP}
 import spike.common.FunctorExtensions._
 import spike.common.MathUtils._
+import spike.runtime.EndpointRequest
 import spike.runtime.resolvers.IntermediateSymbolResolver
 import spike.schema._
 import spike.{IntermediateSymbols => I, SchemaSymbols => S}
@@ -284,11 +285,11 @@ class RequestGenerator(responseRepository: RequestResponseRepository, opportunit
       }
     }
 
-  private def matchRequestIfVariablesFit(request: EndpointRequestResponse, endpointParamsByVariable: List[(EndpointParameterName, List[EndpointParameterName])]): Option[(I.Literal, Map[EndpointParameterName, Json])] = {
+  private def matchRequestIfVariablesFit(request: EndpointRequestResponse, endpointParamsByVariable: List[(EndpointParameterName, Set[EndpointParameterName])]): Option[(I.Literal, Map[EndpointParameterName, Json])] = {
     val resolvedVariableParamsOpt =
       endpointParamsByVariable.foldLeftM[Option, Map[EndpointParameterName, Json]](Map.empty) { (accum, params) =>
         val (variableParam, endpointParams) = params
-        val paramValues                     = endpointParams.map(request.request.parameterValues.apply).distinct
+        val paramValues                     = endpointParams.map(request.request.parameterValues.apply).toList
         paramValues match {
           case paramValue :: Nil =>
             Some(

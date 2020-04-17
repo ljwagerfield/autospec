@@ -4,54 +4,56 @@ import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
+import spike.common.ULIDFactory
+import spike.runtime.ConditionStatus.{Failed, Passed, Unresolvable}
+import spike.runtime.TestPathExecutor.ValidatedRequestResponse
 import spike.schema.ApplicationSchema
 
 class ConsoleApp()(implicit scheduler: Scheduler) {
   private val printer: SymbolPrinter = ScalaSymbolPrinter
 
-  def run(schema: ApplicationSchema, paths: List[TestPath]): Task[Unit] =
-    run(
-      TestPlanGenerator.generate(
-        schema,
-        paths
-      )
-    )
-
-  private def run(testPlan: TestPlan): Task[Unit] =
+  def run(schema: ApplicationSchema, paths: List[TestPathOld]): Task[Unit] =
     AsyncHttpClient.resource[Task]().use { httpClient =>
-      val httpRequestExecutor = new HttpRequestExecutor(httpClient)
-      val testPlanExecutor    = new TestPlanExecutor(httpRequestExecutor)
-      testPlanExecutor.execute(testPlan).map { testResults =>
-        printResults(testPlan, testResults)
+      val ulidFactory             = new ULIDFactory
+      val httpRequestExecutor     = new HttpRequestExecutor(httpClient)
+      val endpointRequestExecutor = new EndpointRequestExecutor(httpRequestExecutor, ulidFactory)
+      val testPathExecutor        = new TestPathExecutor(endpointRequestExecutor)
+      testPathExecutor.execute(schema, paths).map { testResults =>
+        printResults(schema, paths, testResults)
       }
     }
 
-  private def printResults(testPlan: TestPlan, testResults: Map[EndpointRequestId, FailedTestPath]): Unit = {
+  private def printResults(schema: ApplicationSchema, paths: List[TestPathOld], testResults: Map[TestPathId, List[ValidatedRequestResponse]]): Unit = {
     def color(failed: Boolean) = if (failed) Console.RED else Console.GREEN
 
     println(s"${color(false)}Tests:")
     println()
 
-    testPlan.paths.foreach { path =>
+    paths.foreach { path =>
       println(s"${color(false)}  ${path.id.value}:")
-      path.requests.zipWithIndex.toList.foreach { case (EndpointRequestWithChecks(request, checks), i) =>
-        val requestId = EndpointRequestId(path.id, i)
-        val failure   = testResults.get(requestId)
-        val failedConditions = failure.toList.flatMap(_.failures.toList).toSet
-        val isTestPathFailed = failure.nonEmpty
+      val pathResult = testResults(path.id)
+      pathResult.zipWithIndex.foreach { case (result, index) =>
+        val request          = result.requestSymbolic
+        val isTestPathFailed = result.isFailed
+        val conditions       = schema.endpoint(request.endpointId).conditions
+        val status           = result.allConditions(schema)
 
-        println(s"${color(isTestPathFailed)}    $i: ${printer.print(request, i)}")
-        checks.foreach { case (conditionId, predicate) =>
-          val failed = failedConditions.contains(conditionId)
-          println(s"${color(failedConditions.contains(conditionId))}       ${if (failed) "✖" else "✔"} ${printer.print(predicate, i)}")
+        println(s"${color(isTestPathFailed)}    $index: ${printer.print(request, index)}")
+        conditions.foreach { case (conditionId, predicate) =>
+          val (icon, color)   = status(conditionId) match {
+            case Unresolvable => "?" -> Console.YELLOW
+            case Failed       => "✖" -> Console.GREEN
+            case Passed       => "✔" -> Console.RED
+          }
+          println(s"$color       $icon ${printer.print(predicate)}")
         }
       }
 
       print(Console.RESET)
 
-      testResults.find(_._1.testPathId === path.id).foreach { case (_, failure) =>
+      if (pathResult.exists(_.isFailed)) {
         println(s"${Console.RESET}    responses:")
-        failure.responses.toList.zipWithIndex.foreach { case (response, index) =>
+        pathResult.zipWithIndex.foreach { case (response, index) =>
           println(s"      $index: $response")
         }
       }
@@ -59,7 +61,7 @@ class ConsoleApp()(implicit scheduler: Scheduler) {
       println()
     }
 
-    val failureCount = testResults.values.toList.foldMap(_.failures.size)
+    val failureCount = testResults.values.toList.flatMap(_.toList).flatMap(_.resolvedConditions.values.toList).count(_.isFailed)
 
     if (failureCount === 0)
       print(s"${color(false)}All tests passed.")

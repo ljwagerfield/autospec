@@ -1,5 +1,9 @@
 package playground
 
-import spike.runtime.EndpointResponse
+import spike.runtime.{EndpointRequest, EndpointRequestId, EndpointResponse}
 
-case class EndpointRequestResponse(request: EndpointRequest, response: EndpointResponse)
+case class EndpointRequestResponse(
+  requestId: EndpointRequestId,
+  request: EndpointRequest,
+  response: EndpointResponse
+)

@@ -3,7 +3,7 @@ package spike
 import spike.RuntimeSymbols.Predicate._
 import spike.RuntimeSymbols._
 
-class TestPlanGeneratorSpec extends TestPlanGeneratorSpecBase {
+class TestPathExecutorSpec extends TestPathExecutorSpecBase {
   "TestPlanGenerator.generate" should {
     "immediately check postconditions that don't contain references to other endpoints" in {
       import spike.SetApi.Client._
