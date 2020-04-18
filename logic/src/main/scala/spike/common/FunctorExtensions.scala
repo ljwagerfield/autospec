@@ -16,16 +16,16 @@ object FunctorExtensions {
 
     def findAfter(after: A => Boolean, select: A => Boolean)(implicit F: Foldable[F]): Option[A] =
       fa.foldLeft((false: Boolean, None: Option[A])) { (accum, response) =>
-        val (isAfterRequest, result) = accum
+        val (isAfter, result) = accum
         if (result.nonEmpty)
           accum
-        else if (isAfterRequest) {
+        else if (isAfter) {
           if (select(response))
-            isAfterRequest -> Some(response)
+            isAfter -> Some(response)
           else
             accum
         }
-        else if (select(response))
+        else if (after(response))
           true -> None
         else
           accum

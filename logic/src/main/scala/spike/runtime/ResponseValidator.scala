@@ -1,22 +1,19 @@
 package spike.runtime
 
+import alleycats.std.all._
 import cats.data.{Chain, EitherT, OptionT, State}
 import cats.implicits._
 import io.circe.Json
 import playground.EndpointRequestResponse
-import spike.RuntimeSymbols.Predicate._
-import spike.RuntimeSymbols._
 import spike.common.FunctorExtensions._
 import spike.runtime.ConditionStatus.{Failed, Passed, ResolvedConditionStatus, Unresolvable}
-import spike.runtime.SymbolConverter.SymbolConverterError.{UnresolvedForwardLookup, UnresolvedReverseLookup}
-import spike.schema.{ApplicationSchema, ConditionId, ConditionIdWithState, Precondition}
+import spike.runtime.resolvers.BaseSymbolResolver
+import spike.schema.{ApplicationSchema, ConditionIdWithState}
 import spike.{SchemaSymbols => S}
 
 import scala.collection.immutable.{Map => ScalaMap}
 
 object ResponseValidator {
-  private type RequestIndex              = Int
-  private type PostconditionsByRequest   = ScalaMap[RequestIndex, ScalaMap[ConditionId, Predicate]]
   private type EarliestRequestDependency = EndpointRequestId
 
   case class ResponseValidationState(
@@ -26,7 +23,7 @@ object ResponseValidator {
   )
 
   object ResponseValidationState {
-    val initial = ResponseValidationState(ScalaMap.empty, None, Chain.empty)
+    val initial: ResponseValidationState = ResponseValidationState(ScalaMap.empty, None, Chain.empty)
   }
 
   case class ResponseValidationResult(
@@ -46,7 +43,7 @@ object ResponseValidator {
   ): ResponseValidationResult = {
     val request       = requestResponse.request
     val endpoint      = schema.endpoint(requestResponse.request.endpointId)
-    val ownConditions: ScalaMap[ConditionIdWithState, S.Predicate] = endpoint.conditions.map {
+    val ownConditions = endpoint.conditions.map {
       case (conditionId, predicate) =>
         (
           ConditionIdWithState(
@@ -176,7 +173,10 @@ object ResponseValidator {
     requestResponse: EndpointRequestResponse,
     predicate: S.Predicate
   ): EitherT[State[EarliestRequestDependency, *], EndpointRequest, Boolean] = {
-
+    val convertSymbol     = convertToBaseSymbol(schema, getPastResponse, getFutureResponse, requestResponse, _)
+    val basePredicate     = BaseSymbolResolver.convertToBasePredicate(S)(predicate)(convertSymbol)
+    val resolvedPredicate = basePredicate.map(BaseSymbolResolver.resolvePredicate)
+    resolvedPredicate
   }
 
   private def resolveSymbol(
@@ -184,179 +184,54 @@ object ResponseValidator {
     getPastResponse: EndpointRequest => OptionT[State[EarliestRequestDependency, *], EndpointResponse],
     getFutureResponse: EndpointRequest => Option[EndpointResponse],
     requestResponse: EndpointRequestResponse,
-    predicate: S.Symbol
+    symbol: S.Symbol
   ): EitherT[State[EarliestRequestDependency, *], EndpointRequest, Json] = {
-
+    val convertSymbol  = convertToBaseSymbol(schema, getPastResponse, getFutureResponse, requestResponse, _)
+    val baseSymbol     = BaseSymbolResolver.convertToBaseSymbol(S)(symbol)(convertSymbol)
+    val resolvedSymbol = baseSymbol.map(BaseSymbolResolver.resolveSymbol)
+    resolvedSymbol
   }
 
-
-
-
-
-
-
-
-
-  private def generate(schema: ApplicationSchema, paths: List[TestPath]): TestPlan =
-    TestPlan(
-      schema,
-      paths.map(addChecksToTestPath(schema, _))
-    )
-
-  private def addChecksToTestPath(schema: ApplicationSchema, testPath: TestPath): TestPathWithChecks =
-    TestPathWithChecks(
-      testPath.id,
-      testPath
-        .requests
-        .foldLeft(StateOld(0, 0, Chain.empty, testPath.requests, Chain.empty, ScalaMap.empty))(addChecksToRequest(schema, _, _))
-        .requests
-    )
-
-  private def addChecksToRequest(schema: ApplicationSchema, state: StateOld, request: EndpointRequest): StateOld = {
-    val requestIndex       = state.currentRequestIndex
-    val endpoint           = schema.endpoint(request.endpointId)
-    val preconditionScope  = state.preconditionScope
-    val postconditionScope = state.postconditionScope.tail
-
-    val (_, preconditions) =
-      endpoint.preconditionMap.toList.partitionBifold { case (conditionId, Precondition(predicate, expectedStatus)) =>
-        for {
-          success <- SymbolConverter.convertToRuntimePredicate(
-            request,
-            requestIndex,
-            state.preconditionOffset,
-            preconditionScope,
-            Chain.empty,
-            predicate
-          )
-          successOrExpectedError =
-          Or(
-            success,
-            Equals(
-              StatusCode(requestIndex),
-              Literal(Json.fromInt(expectedStatus))
+  private def convertToBaseSymbol(
+    schema: ApplicationSchema,
+    getPastResponse: EndpointRequest => OptionT[State[EarliestRequestDependency, *], EndpointResponse],
+    getFutureResponse: EndpointRequest => Option[EndpointResponse],
+    requestResponse: EndpointRequestResponse,
+    symbol: S.OwnSymbols
+  ): EitherT[State[EarliestRequestDependency, *], EndpointRequest, Json] = {
+    type F[A] = EitherT[State[EarliestRequestDependency, *], EndpointRequest, A]
+    symbol match {
+      case S.ResponseBody    => requestResponse.response.body.pure[F]
+      case S.StatusCode      => Json.fromInt(requestResponse.response.status).pure[F]
+      case S.Parameter(name) => requestResponse.request.parameterValues(name).pure[F]
+      case S.Endpoint(endpointId, parameters, evaluateAfterExecution) =>
+        val resolvedParametersF =
+          parameters.traverse(
+            resolveSymbol(
+              schema,
+              getPastResponse,
+              getFutureResponse,
+              requestResponse,
+              _
             )
           )
-        } yield (
-          conditionId,
-          successOrExpectedError
-        )
-      }
 
-    val (unresolvedPostconditions, postconditions) =
-      endpoint.postconditionMap.toList.flatPartitionBifold { case (conditionId, predicate) =>
-        {for {
-          success <- SymbolConverter.convertToRuntimePredicate(
-            request,
-            requestIndex,
-            state.preconditionOffset,
-            preconditionScope,
-            postconditionScope,
-            predicate
-          )
-        } yield (
-          conditionId,
-          success
-        )}.leftMap(_.toList).map(_ :: Nil)
-      }
+        val responseF = (request: EndpointRequest) => {
+          if (evaluateAfterExecution)
+            OptionT.fromOption[State[EarliestRequestDependency, *]](
+              getFutureResponse(request)
+            )
+          else
+            getPastResponse(request)
+        }.toRight(request)
 
-    val postconditionsByRequest =
-      postconditions.toMap.groupBy { case (_, predicate) => maxRequestIndex(predicate).getOrElse(requestIndex) }
-
-    val hasUnresolvedForwardLookups =
-      unresolvedPostconditions.exists {
-        case UnresolvedForwardLookup => true
-        case UnresolvedReverseLookup => false
-      }
-
-    // If any postconditions reference requests other than the current one, then by default we assume this is a mutating
-    // request. It may not be: for example, a pure endpoint can reference other pure endpoints to declare synchronicity
-    // with them. In these scenarios, the developer must explicitly mark the endpoint as 'pure'.
-    val isMutation =
-      !endpoint.forcePure && (
-        hasUnresolvedForwardLookups || postconditionsByRequest.keySet.maxOption.exists(_ > requestIndex)
-      )
-
-    val (previousPostconditions, nextPreconditionScope) =
-      if (isMutation)
-        (
-          // Clear all previously deferred postconditions (mutations invalidate them).
-          ScalaMap(
-            requestIndex -> state.deferredPostconditions.getOrElse(requestIndex, ScalaMap.empty)
-          ),
-          // Prevent references to previously executed requests (their results are considered stale after a mutation).
-          Chain(
-            request
-          )
-        )
-      else
-        (state.deferredPostconditions, state.preconditionScope :+ request)
-
-    val preconditionScopeShrinkage = (state.preconditionScope.size - (nextPreconditionScope.size - 1)).toInt
-
-    val mergedPostconditions       = mergePostconditions(previousPostconditions, postconditionsByRequest)
-    val immediatePostconditions    = mergedPostconditions.getOrElse(requestIndex, ScalaMap.empty)
-    val deferredPostconditions     = mergedPostconditions - requestIndex
-
-    val requestWithChecks = EndpointRequestWithChecks(
-      request,
-      preconditions.toMap ++ immediatePostconditions
-    )
-
-    StateOld(
-      currentRequestIndex    = requestIndex + 1,
-      preconditionOffset     = state.preconditionOffset + preconditionScopeShrinkage,
-      preconditionScope      = nextPreconditionScope,
-      postconditionScope     = postconditionScope,
-      requests               = state.requests :+ requestWithChecks,
-      deferredPostconditions = deferredPostconditions
-    )
-  }
-
-  private def maxRequestIndex(symbol: Symbol): Option[RequestIndex] =
-    symbol match {
-      // Leafs: Request Index
-      case ResponseBody(requestIndex) => Some(requestIndex)
-      case StatusCode(requestIndex)   => Some(requestIndex)
-
-      // Leafs: N/A
-      case Literal(_)                 => None
-      case LambdaParameter(_)         => None
-
-      // Recursive Data Structures
-      case Map(symbol, path)          => max(maxRequestIndex(symbol), maxRequestIndex(path))
-      case FlatMap(symbol, path)      => max(maxRequestIndex(symbol), maxRequestIndex(path))
-      case Flatten(symbol)            => maxRequestIndex(symbol)
-      case Find(symbol, predicate)    => max(maxRequestIndex(symbol), maxRequestIndex(predicate))
-      case Count(symbol)              => maxRequestIndex(symbol)
-      case Distinct(symbol)           => maxRequestIndex(symbol)
-      case Prepend(item, collection)  => max(maxRequestIndex(item), maxRequestIndex(collection))
-      case Append(collection, item)   => max(maxRequestIndex(item), maxRequestIndex(collection))
-      case Concat(left, right)        => max(maxRequestIndex(left), maxRequestIndex(right))
-      case Equals(left, right)        => max(maxRequestIndex(left), maxRequestIndex(right))
-      case And(left, right)           => max(maxRequestIndex(left), maxRequestIndex(right))
-      case Or(left, right)            => max(maxRequestIndex(left), maxRequestIndex(right))
-      case Not(predicate)             => maxRequestIndex(predicate)
-      case Exists(symbol, predicate)  => max(maxRequestIndex(symbol), maxRequestIndex(predicate))
-      case Contains(collection, item) => max(maxRequestIndex(collection), maxRequestIndex(item))
+        for {
+          resolvedParameters <- resolvedParametersF
+          request             = EndpointRequest(endpointId, resolvedParameters)
+          response           <- responseF(request)
+        } yield {
+          response.body
+        }
     }
-
-  private def max(a: Option[RequestIndex], b: Option[RequestIndex]): Option[RequestIndex] =
-    (a, b).mapN(Math.max).orElse(a).orElse(b)
-
-  private def mergePostconditions(a: PostconditionsByRequest, b: PostconditionsByRequest): PostconditionsByRequest =
-    (a.toList ::: b.toList).groupMapReduce(_._1)(_._2)(_ ++ _)
-
-  private case class StateOld(
-    currentRequestIndex: Int,
-    preconditionOffset: Int,
-    preconditionScope: Chain[EndpointRequest],
-    postconditionScope: Chain[EndpointRequest],
-    requests: Chain[EndpointRequestWithChecks],
-    deferredPostconditions: PostconditionsByRequest
-  )
-
-  private object StateOld {
-    val initial = StateOld(0, 0, Chain.empty, Chain.empty, Chain.empty, ScalaMap.empty)
   }
 }

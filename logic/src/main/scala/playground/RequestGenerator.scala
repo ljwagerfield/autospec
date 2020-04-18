@@ -344,7 +344,8 @@ class RequestGenerator(responseRepository: RequestResponseRepository, opportunit
       }
 
     def convert2[A, B, A2, B2, R](newType: (A2, B2) => R, a: A, b: B)
-                                 (implicit atoa: Convert[A, A2], btob: Convert[B, B2]): List[(R, Map[EndpointParameterName, Json])] =
+                                 (implicit atoa: Convert[A, A2], btob: Convert[B, B2])
+                                 : List[(R, Map[EndpointParameterName, Json])] =
       for {
         (a2, resolvedParams2) <- atoa(a, resolvedParams)
         (b2, resolvedParams3) <- btob(b, resolvedParams2)

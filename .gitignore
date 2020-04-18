@@ -9,6 +9,7 @@
 # SBT
 project/project
 project/.sbtserver*
+.hydra
 
 # Java
 target

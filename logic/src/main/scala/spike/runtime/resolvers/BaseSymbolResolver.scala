@@ -1,42 +1,44 @@
 package spike.runtime.resolvers
 
+import cats.Applicative
 import cats.implicits._
 import io.circe.Json
 import spike.BaseSymbols.Predicate._
 import spike.BaseSymbols._
 
 object BaseSymbolResolver {
-  def convertToBaseSymbol[A <: spike.CommonSymbols](s: A)(symbol: s.Symbol)(convert: s.OwnSymbols => Json): Symbol = {
+
+  def convertToBaseSymbol[F[_]: Applicative, A <: spike.CommonSymbols](s: A)(symbol: s.Symbol)(convert: s.OwnSymbols => F[Json]): F[Symbol] = {
     val convertSym  = convertToBaseSymbol(s)(_: s.Symbol)(convert)
     val convertPred = convertToBasePredicate(s)(_: s.Predicate)(convert)
     symbol match {
-      case x: s.Literal               => Literal(x.value)
-      case x: s.LambdaParameter       => LambdaParameter(x.distance)
-      case x: s.Map                   => Map(convertSym(x.symbol), convertSym(x.path))
-      case x: s.FlatMap               => FlatMap(convertSym(x.symbol), convertSym(x.path))
-      case x: s.Flatten               => Flatten(convertSym(x.symbol))
-      case x: s.Find                  => Find(convertSym(x.symbol), convertPred(x.predicate))
-      case x: s.Count                 => Count(convertSym(x.symbol))
-      case x: s.Distinct              => Distinct(convertSym(x.symbol))
-      case x: s.Prepend               => Prepend(convertSym(x.item), convertSym(x.collection))
-      case x: s.Append                => Append(convertSym(x.collection), convertSym(x.item))
-      case x: s.Concat                => Concat(convertSym(x.leftCollection), convertSym(x.rightCollection))
-      case x: s.Predicate             => convertPred(x)
-      case x: s.OwnSymbols @unchecked => Literal(convert(x))
+      case x: s.Literal               => (Literal(x.value): Symbol).pure[F]
+      case x: s.LambdaParameter       => (LambdaParameter(x.distance): Symbol).pure[F]
+      case x: s.Map                   => (convertSym(x.symbol), convertSym(x.path)).mapN(Map.apply)
+      case x: s.FlatMap               => (convertSym(x.symbol), convertSym(x.path)).mapN(FlatMap.apply)
+      case x: s.Flatten               => convertSym(x.symbol).map(Flatten.apply)
+      case x: s.Find                  => (convertSym(x.symbol), convertPred(x.predicate)).mapN(Find.apply)
+      case x: s.Count                 => convertSym(x.symbol).map(Count.apply)
+      case x: s.Distinct              => convertSym(x.symbol).map(Distinct.apply)
+      case x: s.Prepend               => (convertSym(x.item), convertSym(x.collection)).mapN(Prepend.apply)
+      case x: s.Append                => (convertSym(x.collection), convertSym(x.item)).mapN(Append.apply)
+      case x: s.Concat                => (convertSym(x.leftCollection), convertSym(x.rightCollection)).mapN(Concat.apply)
+      case x: s.Predicate             => convertPred(x).widen[Symbol]
+      case x: s.OwnSymbols @unchecked => convert(x).map(Literal.apply)
       case x                          => throw new Exception(s"No matches for $x in case statement.")
     }
   }
 
-  def convertToBasePredicate[A <: spike.CommonSymbols](s: A)(symbol: s.Predicate)(convert: s.OwnSymbols => Json): Predicate = {
+  def convertToBasePredicate[F[_]: Applicative, A <: spike.CommonSymbols](s: A)(symbol: s.Predicate)(convert: s.OwnSymbols => F[Json]): F[Predicate] = {
     val convertSym  = convertToBaseSymbol(s)(_: s.Symbol)(convert)
     val convertPred = convertToBasePredicate(s)(_: s.Predicate)(convert)
     symbol match {
-      case x: s.Predicate.Equals   => Equals(convertSym(x.left), convertSym(x.right))
-      case x: s.Predicate.And      => And(convertPred(x.left), convertPred(x.right))
-      case x: s.Predicate.Or       => Or(convertPred(x.left), convertPred(x.right))
-      case x: s.Predicate.Not      => Not(convertPred(x.predicate))
-      case x: s.Predicate.Exists   => Exists(convertSym(x.symbol), convertPred(x.predicate))
-      case x: s.Predicate.Contains => Contains(convertSym(x.collection), convertSym(x.item))
+      case x: s.Predicate.Equals   => (convertSym(x.left), convertSym(x.right)).mapN(Equals.apply)
+      case x: s.Predicate.And      => (convertPred(x.left), convertPred(x.right)).mapN(And.apply)
+      case x: s.Predicate.Or       => (convertPred(x.left), convertPred(x.right)).mapN(Or.apply)
+      case x: s.Predicate.Not      => convertPred(x.predicate).map(Not.apply)
+      case x: s.Predicate.Exists   => (convertSym(x.symbol), convertPred(x.predicate)).mapN(Exists.apply)
+      case x: s.Predicate.Contains => (convertSym(x.collection), convertSym(x.item)).mapN(Contains.apply)
       case x                       => throw new Exception(s"No matches for $x in case statement.")
     }
   }

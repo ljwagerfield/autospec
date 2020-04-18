@@ -1,5 +1,6 @@
 package spike.runtime.resolvers
 
+import cats.Id
 import cats.data.Chain
 import io.circe.Json
 import spike.RuntimeSymbols
@@ -9,12 +10,12 @@ import spike.runtime.EndpointResponse
 object RuntimeSymbolResolver {
   def resolveSymbol(symbol: Symbol, history: Chain[EndpointResponse]): Json =
     BaseSymbolResolver.resolveSymbol(
-      BaseSymbolResolver.convertToBaseSymbol(RuntimeSymbols)(symbol)(convertToBaseSymbol(history))
+      BaseSymbolResolver.convertToBaseSymbol[Id, RuntimeSymbols.type](RuntimeSymbols)(symbol)(convertToBaseSymbol(history))
     )
 
   def resolvePredicate(predicate: Predicate, history: Chain[EndpointResponse]): Boolean =
     BaseSymbolResolver.resolvePredicate(
-      BaseSymbolResolver.convertToBasePredicate(RuntimeSymbols)(predicate)(convertToBaseSymbol(history))
+      BaseSymbolResolver.convertToBasePredicate[Id, RuntimeSymbols.type](RuntimeSymbols)(predicate)(convertToBaseSymbol(history))
     )
 
   def convertToBaseSymbol(history: Chain[EndpointResponse])(symbol: OwnSymbols): Json = {

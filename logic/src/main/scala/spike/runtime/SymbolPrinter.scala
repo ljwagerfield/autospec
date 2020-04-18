@@ -35,7 +35,7 @@ object ScalaSymbolPrinter extends SymbolPrinter {
       case StatusCode(requestIndex)   => if (requestIndex === currentRequestIndex) "status" else s"statusAt($requestIndex)"
     }
 
-  private def common(family: CommonSymbols)(symbol: family.Symbol)(specialized: family.Symbol => String): String = {
+  private def common(family: CommonSymbols)(symbol: family.Symbol)(specialized: family.OwnSymbols => String): String = {
     val p = common(family)(_: family.Symbol)(specialized)
     symbol match {
       case x: family.Literal            => x.value.toString()
@@ -55,7 +55,7 @@ object ScalaSymbolPrinter extends SymbolPrinter {
       case x: family.Predicate.Not      => s"!${p(x.predicate)}"
       case x: family.Predicate.Exists   => s"${p(x.symbol)}.exists(${p(x.predicate)})"
       case x: family.Predicate.Contains => s"${p(x.collection)}.contains(${p(x.item)})"
-      case x                            => specialized(x)
+      case x                            => specialized(x.asInstanceOf[family.OwnSymbols])
     }
   }
 
