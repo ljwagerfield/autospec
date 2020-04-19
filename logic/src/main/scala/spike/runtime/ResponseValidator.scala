@@ -6,7 +6,7 @@ import cats.implicits._
 import io.circe.Json
 import playground.EndpointRequestResponse
 import spike.common.FunctorExtensions._
-import spike.runtime.ConditionStatus.{Failed, Passed, ResolvedConditionStatus, Unresolvable}
+import spike.runtime.ConditionStatus.{Failed, Passed, Unresolvable}
 import spike.runtime.resolvers.BaseSymbolResolver
 import spike.schema.{ApplicationSchema, ConditionIdWithState}
 import spike.{SchemaSymbols => S}
@@ -15,26 +15,6 @@ import scala.collection.immutable.{Map => ScalaMap}
 
 object ResponseValidator {
   private type EarliestRequestDependency = EndpointRequestId
-
-  case class ResponseValidationState(
-    deferredConditions: ScalaMap[EndpointRequest, Set[ConditionIdWithState]],
-    lastMutatingRequestId: Option[EndpointRequestId],
-    history: Chain[EndpointRequestResponse]
-  )
-
-  object ResponseValidationState {
-    val initial: ResponseValidationState = ResponseValidationState(ScalaMap.empty, None, Chain.empty)
-  }
-
-  case class ResponseValidationResult(
-    completedConditions: ScalaMap[ConditionIdWithState, ConditionStatus],
-    state: ResponseValidationState
-  ) {
-    def resolvedConditions: ScalaMap[ConditionIdWithState, ResolvedConditionStatus] =
-      completedConditions.collect {
-        case (id, status: ResolvedConditionStatus) => id -> status
-      }
-  }
 
   def validateConditions(
     schema: ApplicationSchema,

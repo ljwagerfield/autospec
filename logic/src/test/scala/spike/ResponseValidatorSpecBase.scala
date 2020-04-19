@@ -1,20 +1,20 @@
 package spike
 
-import cats.data.{Chain, NonEmptyList}
+import cats.data.NonEmptyList
 import org.scalactic.source
 import spike.RuntimeSymbols._
 import spike.runtime._
 import spike.schema.ApplicationSchema
 
-abstract class TestPathExecutorSpecBase extends BaseSpec {
-  def checks(expected: Predicate*)(actual: (EndpointRequestIdOld, EndpointRequestSymbolic, Set[Predicate]))(implicit pos: source.Position): Unit = {
+abstract class ResponseValidatorSpecBase extends BaseSpec {
+  def checks(expected: Predicate*)(actual: (TestPathRequestIndex, EndpointRequestSymbolic, Set[Predicate]))(implicit pos: source.Position): Unit = {
     val (requestId, request, actualConditions) = actual
     val expectedConditions = expected.toSet
     val missing            = expectedConditions -- actualConditions
     val unexpected         = actualConditions -- expectedConditions
 
     if (missing.nonEmpty || unexpected.nonEmpty) {
-      val analysis   = new StringBuilder()
+      val analysis = new StringBuilder()
 
       analysis.append(s"Request:       #${requestId.requestIndex}\n")
       analysis.append(s"Signature:     ${ScalaSymbolPrinter.print(request, requestId.requestIndex)}\n")
@@ -39,31 +39,22 @@ abstract class TestPathExecutorSpecBase extends BaseSpec {
     }
   }
 
-  def test(requests: (EndpointRequestSymbolic, ((EndpointRequestIdOld, EndpointRequestSymbolic, Set[Predicate])) => Unit)*)(implicit schema: ApplicationSchema): Unit = {
+  def test(requests: (EndpointRequestSymbolic, ((TestPathRequestIndex, EndpointRequestSymbolic, Set[Predicate])) => Unit)*)(implicit schema: ApplicationSchema): Unit = {
     val testPathId = TestPathId("example-test")
 
     val conditions = requests
       .zipWithIndex
       .map { case ((_, predicates), requestIndex) =>
-        EndpointRequestIdOld(testPathId, requestIndex) -> predicates
+        TestPathRequestIndex(testPathId, requestIndex) -> predicates
       }
       .toMap
 
-    val testPath =
-      TestPathOld(
-        testPathId,
-        Chain.fromSeq(requests.map(_._1))
-      )
+    val testPath = requests.map(_._1).toList
+    val testPlan = ResponseValidatorDebugger.generateTestPlan(schema, testPath)
 
-    val testPlan =
-      TestPlanExecutor.generate(schema, List(testPath))
-
-    val requestsWithChecks =
-      testPlan.paths.flatMap(_.requests.toList)
-
-    requestsWithChecks.zipWithIndex.foreach { case (request, requestIndex) =>
-      val requestId = EndpointRequestIdOld(testPathId, requestIndex)
-      val actual    = request.checks.values.toSet
+    testPlan.zipWithIndex.foreach { case (request, requestIndex) =>
+      val requestId = TestPathRequestIndex(testPathId, requestIndex)
+      val actual    = request.checks
       val expected  = conditions(requestId)
 
       expected((requestId, request.request, actual))

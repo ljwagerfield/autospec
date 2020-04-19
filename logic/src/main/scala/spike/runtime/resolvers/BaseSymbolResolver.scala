@@ -3,45 +3,21 @@ package spike.runtime.resolvers
 import cats.Applicative
 import cats.implicits._
 import io.circe.Json
+import spike.BaseSymbols
 import spike.BaseSymbols.Predicate._
 import spike.BaseSymbols._
 
 object BaseSymbolResolver {
 
-  def convertToBaseSymbol[F[_]: Applicative, A <: spike.CommonSymbols](s: A)(symbol: s.Symbol)(convert: s.OwnSymbols => F[Json]): F[Symbol] = {
-    val convertSym  = convertToBaseSymbol(s)(_: s.Symbol)(convert)
-    val convertPred = convertToBasePredicate(s)(_: s.Predicate)(convert)
-    symbol match {
-      case x: s.Literal               => (Literal(x.value): Symbol).pure[F]
-      case x: s.LambdaParameter       => (LambdaParameter(x.distance): Symbol).pure[F]
-      case x: s.Map                   => (convertSym(x.symbol), convertSym(x.path)).mapN(Map.apply)
-      case x: s.FlatMap               => (convertSym(x.symbol), convertSym(x.path)).mapN(FlatMap.apply)
-      case x: s.Flatten               => convertSym(x.symbol).map(Flatten.apply)
-      case x: s.Find                  => (convertSym(x.symbol), convertPred(x.predicate)).mapN(Find.apply)
-      case x: s.Count                 => convertSym(x.symbol).map(Count.apply)
-      case x: s.Distinct              => convertSym(x.symbol).map(Distinct.apply)
-      case x: s.Prepend               => (convertSym(x.item), convertSym(x.collection)).mapN(Prepend.apply)
-      case x: s.Append                => (convertSym(x.collection), convertSym(x.item)).mapN(Append.apply)
-      case x: s.Concat                => (convertSym(x.leftCollection), convertSym(x.rightCollection)).mapN(Concat.apply)
-      case x: s.Predicate             => convertPred(x).widen[Symbol]
-      case x: s.OwnSymbols @unchecked => convert(x).map(Literal.apply)
-      case x                          => throw new Exception(s"No matches for $x in case statement.")
+  def convertToBaseSymbol[F[_]: Applicative, A <: spike.CommonSymbols](s: A)(symbol: s.Symbol)(convert: s.OwnSymbols => F[Json]): F[Symbol] =
+    SymbolConverter.convertSymbol(s, BaseSymbols)(symbol) { symbol =>
+      convert(symbol).map(Literal.apply)
     }
-  }
 
-  def convertToBasePredicate[F[_]: Applicative, A <: spike.CommonSymbols](s: A)(symbol: s.Predicate)(convert: s.OwnSymbols => F[Json]): F[Predicate] = {
-    val convertSym  = convertToBaseSymbol(s)(_: s.Symbol)(convert)
-    val convertPred = convertToBasePredicate(s)(_: s.Predicate)(convert)
-    symbol match {
-      case x: s.Predicate.Equals   => (convertSym(x.left), convertSym(x.right)).mapN(Equals.apply)
-      case x: s.Predicate.And      => (convertPred(x.left), convertPred(x.right)).mapN(And.apply)
-      case x: s.Predicate.Or       => (convertPred(x.left), convertPred(x.right)).mapN(Or.apply)
-      case x: s.Predicate.Not      => convertPred(x.predicate).map(Not.apply)
-      case x: s.Predicate.Exists   => (convertSym(x.symbol), convertPred(x.predicate)).mapN(Exists.apply)
-      case x: s.Predicate.Contains => (convertSym(x.collection), convertSym(x.item)).mapN(Contains.apply)
-      case x                       => throw new Exception(s"No matches for $x in case statement.")
+  def convertToBasePredicate[F[_]: Applicative, A <: spike.CommonSymbols](s: A)(symbol: s.Predicate)(convert: s.OwnSymbols => F[Json]): F[Predicate] =
+    SymbolConverter.convertPredicate(s, BaseSymbols)(symbol) { symbol =>
+      convert(symbol).map(Literal.apply)
     }
-  }
 
   def resolveSymbol(symbol: Symbol): Json =
     resolveSymbol(Nil, symbol)

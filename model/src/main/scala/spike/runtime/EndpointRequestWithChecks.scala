@@ -1,6 +1,5 @@
 package spike.runtime
 
-import spike.BaseSymbols.Predicate
-import spike.schema.ConditionId
+import spike.RuntimeSymbols.Predicate
 
-case class EndpointRequestWithChecks(request: EndpointRequest, checks: Map[ConditionId, Predicate])
+case class EndpointRequestWithChecks(request: EndpointRequestSymbolic, checks: Set[Predicate])

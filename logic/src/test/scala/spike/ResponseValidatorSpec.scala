@@ -3,8 +3,8 @@ package spike
 import spike.RuntimeSymbols.Predicate._
 import spike.RuntimeSymbols._
 
-class TestPathExecutorSpec extends TestPathExecutorSpecBase {
-  "TestPlanGenerator.generate" should {
+class ResponseValidatorSpec extends ResponseValidatorSpecBase {
+  "ResponseValidator" should {
     "immediately check postconditions that don't contain references to other endpoints" in {
       import spike.SetApi.Client._
       test(
@@ -198,26 +198,29 @@ class TestPathExecutorSpec extends TestPathExecutorSpecBase {
       )
     }
 
-    // Theoretically we could support this, but felt the complexity outweighed the benefit at the time. Benefit: reduced
-    // number of GET requests to validate endpoint postconditions in some situations. Complexity: identifying state
-    // boundaries / which requests touch state shared by other requests.
-    "not use previous endpoint as a 'reverse lookup' endpoint if there have since been mutations (even if they don't mutate the same state)" in {
-      import spike.SetPairApi.Client._
+    "prevent postconditions referring to earlier endpoints if there have since been related mutations (#1)" in {
+      import spike.ListApi.Client._
       test(
-        listA() -> checks(
-          Equals(Count(Distinct(ResponseBody(0))), Count(ResponseBody(0)))
+        list() -> checks(
+
         ),
-        addB(42) -> checks(
+        add(42) -> checks(
           Equals(StatusCode(1), Literal(200))
         ),
-        listA() -> checks(
-          Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2))),
+        list() -> checks(
+          Equals(
+            Concat(
+              ResponseBody(0),
+              Literal(42)
+            ),
+            ResponseBody(2)
+          ),
           // Equals(ResponseBody(0), ResponseBody(2)) // Discard this check as there's been a mutation since #0 was called
-        )
+        ),
       )
     }
 
-    "not use previous endpoint as a 'reverse lookup' endpoint if there have since been known mutations to it" in {
+    "prevent postconditions referring to earlier endpoints if there have since been related mutations (#2)" in {
       import spike.SetApi.Client._
       test(
         list() -> checks(
@@ -234,19 +237,21 @@ class TestPathExecutorSpec extends TestPathExecutorSpecBase {
       )
     }
 
-    // Edge case: ensures we accumulate 'unresolvable lookup' error and don't fail on the first one (an unresolvable
-    // reverse lookup in the case), as only unresolvable forward lookups trigger an endpoint as being treated as mutating.
-    "treat endpoints that have a postcondition that contains both an unresolvable reverse lookup and an unresolvable forward lookup as mutating" in {
-      import spike.ListPairApi.Client._
+    // Theoretically we could support this, but felt the complexity outweighed the benefit at the time. Benefit: reduced
+    // number of GET requests to validate endpoint postconditions in some situations. Complexity: identifying state
+    // boundaries / which requests touch state shared by other requests.
+    "prevent postconditions referring to earlier endpoints if there have since been unrelated mutations" in {
+      import spike.SetPairApi.Client._
       test(
-        removeB(52) -> checks(
-          Equals(StatusCode(0), Literal(200))
+        listA() -> checks(
+          Equals(Count(Distinct(ResponseBody(0))), Count(ResponseBody(0)))
         ),
-        addA(42) -> checks( // Contains unresolvable reverse and forward lookups (in that order)
+        addB(42) -> checks(
           Equals(StatusCode(1), Literal(200))
         ),
-        listB() -> checks(
-          //Not(Contains(ResponseBody(2), Literal(52))), // Should be invalidated due to mutation in #1
+        listA() -> checks(
+          Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2))),
+          // Equals(ResponseBody(0), ResponseBody(2)) // Discard this check as there's been a mutation since #0 was called
         )
       )
     }

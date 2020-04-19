@@ -2,13 +2,17 @@ package spike.runtime
 
 import monix.eval.Task
 import playground.{EndpointRequestResponse, HttpRequestEncoder}
-import spike.common.ULIDFactory
+import spike.common.ULID
 import spike.schema.ApplicationSchema
 
-class EndpointRequestExecutor(httpRequestExecutor: HttpRequestExecutor, ulid: ULIDFactory) {
+trait EndpointRequestExecutor {
+  def execute(schema: ApplicationSchema, request: EndpointRequest): Task[EndpointRequestResponse]
+}
+
+class EndpointRequestExecutorImpl(httpRequestExecutor: HttpRequestExecutor) extends EndpointRequestExecutor {
   def execute(schema: ApplicationSchema, request: EndpointRequest): Task[EndpointRequestResponse] =
     for {
-      id             <- ulid.nextULID[Task].map(EndpointRequestId.apply)
+      id             <- ULID.next[Task].map(EndpointRequestId.apply)
       encodedRequest  = HttpRequestEncoder.encode[Task](schema, request)
       response       <- httpRequestExecutor.execute(encodedRequest)
     } yield {
