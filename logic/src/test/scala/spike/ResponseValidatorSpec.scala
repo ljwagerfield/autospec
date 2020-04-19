@@ -198,29 +198,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
       )
     }
 
-    "prevent postconditions referring to earlier endpoints if there have since been related mutations (#1)" in {
-      import spike.ListApi.Client._
-      test(
-        list() -> checks(
-
-        ),
-        add(42) -> checks(
-          Equals(StatusCode(1), Literal(200))
-        ),
-        list() -> checks(
-          Equals(
-            Concat(
-              ResponseBody(0),
-              Literal(42)
-            ),
-            ResponseBody(2)
-          ),
-          // Equals(ResponseBody(0), ResponseBody(2)) // Discard this check as there's been a mutation since #0 was called
-        ),
-      )
-    }
-
-    "prevent postconditions referring to earlier endpoints if there have since been related mutations (#2)" in {
+    "prevent postconditions referring to earlier endpoints if there have since been related mutations" in {
       import spike.SetApi.Client._
       test(
         list() -> checks(
@@ -234,6 +212,30 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
           Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2))),
           // Equals(ResponseBody(0), ResponseBody(2)) // Discard this check as there's been a mutation since #0 was called
         )
+      )
+    }
+
+    "prevent postconditions referring to earlier endpoints if there has since been a mutation, even if said earlier endpoint is kept in-scope by a condition deferred by the mutation" in {
+      import spike.ListApi.Client._
+      test(
+        list() -> checks(
+
+        ),
+        // IMPORTANT FOR THIS TEST: 'add' defers a condition that refers to both 0 and 2, but 2 cannot see 0 for its
+        // own postconditions, as 1 mutates in between.
+        add(42) -> checks(
+          Equals(StatusCode(1), Literal(200))
+        ),
+        list() -> checks(
+          Equals(
+            Concat(
+              ResponseBody(0),
+              Literal(42)
+            ),
+            ResponseBody(2)
+          ),
+          // Equals(ResponseBody(0), ResponseBody(2)) // Discard this check as there's been a mutation since #0 was called
+        ),
       )
     }
 

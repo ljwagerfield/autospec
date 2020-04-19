@@ -29,6 +29,7 @@ object ListApi {
         ),
         Nil,
         List(
+          // IMPORTANT: Some tests rely on this condition performing BOTH a reverse and forward lookup, so do not change.
           Predicate.Equals(
             Concat(
               Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
