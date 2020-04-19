@@ -98,7 +98,7 @@ object ResponseValidator {
       conditions.map {
         case (condition, Right(true))   => condition -> Right(Passed)
         case (condition, Right(false))  => condition -> Right(Failed)
-        case (condition, Left(request)) => condition -> (if (condition.isPrecondition) Right(Unresolvable) else Left(request))
+        case (condition, Left(request)) => condition -> request.filterNot(_ => condition.isPrecondition).toLeft(Unresolvable)
       }.toMap.partitionEither(identity)
 
     val oldDeferred =
@@ -152,7 +152,7 @@ object ResponseValidator {
     getFutureResponse: EndpointRequest => Option[EndpointResponse],
     requestResponse: EndpointRequestResponse,
     predicate: S.Predicate
-  ): EitherT[State[EarliestRequestDependency, *], EndpointRequest, Boolean] = {
+  ): EitherT[State[EarliestRequestDependency, *], Option[EndpointRequest], Boolean] = {
     val convertSymbol     = convertToBaseSymbol(schema, getPastResponse, getFutureResponse, requestResponse, _)
     val basePredicate     = BaseSymbolResolver.convertToBasePredicate(S)(predicate)(convertSymbol)
     val resolvedPredicate = basePredicate.map(BaseSymbolResolver.resolvePredicate)
@@ -165,7 +165,7 @@ object ResponseValidator {
     getFutureResponse: EndpointRequest => Option[EndpointResponse],
     requestResponse: EndpointRequestResponse,
     symbol: S.Symbol
-  ): EitherT[State[EarliestRequestDependency, *], EndpointRequest, Json] = {
+  ): EitherT[State[EarliestRequestDependency, *], Option[EndpointRequest], Json] = {
     val convertSymbol  = convertToBaseSymbol(schema, getPastResponse, getFutureResponse, requestResponse, _)
     val baseSymbol     = BaseSymbolResolver.convertToBaseSymbol(S)(symbol)(convertSymbol)
     val resolvedSymbol = baseSymbol.map(BaseSymbolResolver.resolveSymbol)
@@ -178,8 +178,8 @@ object ResponseValidator {
     getFutureResponse: EndpointRequest => Option[EndpointResponse],
     requestResponse: EndpointRequestResponse,
     symbol: S.OwnSymbols
-  ): EitherT[State[EarliestRequestDependency, *], EndpointRequest, Json] = {
-    type F[A] = EitherT[State[EarliestRequestDependency, *], EndpointRequest, A]
+  ): EitherT[State[EarliestRequestDependency, *], Option[EndpointRequest], Json] = {
+    type F[A] = EitherT[State[EarliestRequestDependency, *], Option[EndpointRequest], A]
     symbol match {
       case S.ResponseBody    => requestResponse.response.body.pure[F]
       case S.StatusCode      => Json.fromInt(requestResponse.response.status).pure[F]
@@ -196,6 +196,9 @@ object ResponseValidator {
             )
           )
 
+        // Do not defer condition if it's dependent on a request that was supposed to have happened in the past:
+        val dependsOn = Some(_: EndpointRequest).filter(_ => evaluateAfterExecution)
+
         val responseF = (request: EndpointRequest) => {
           if (evaluateAfterExecution)
             OptionT.fromOption[State[EarliestRequestDependency, *]](
@@ -203,7 +206,7 @@ object ResponseValidator {
             )
           else
             getPastResponse(request)
-        }.toRight(request)
+        }.toRight(dependsOn(request))
 
         for {
           resolvedParameters <- resolvedParametersF
