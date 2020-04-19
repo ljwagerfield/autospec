@@ -40,8 +40,8 @@ class ConsoleApp()(implicit scheduler: Scheduler) {
         conditions.foreach { case (conditionId, predicate) =>
           val (icon, color)   = allConditions.get(conditionId.withProvenance(result.requestId)) match {
             case None         => "?" -> Console.YELLOW
-            case Some(Failed) => "✖" -> Console.GREEN
-            case Some(Passed) => "✔" -> Console.RED
+            case Some(Failed) => "✖" -> Console.RED
+            case Some(Passed) => "✔" -> Console.GREEN
           }
           println(s"$color       $icon ${printer.print(predicate)}")
         }

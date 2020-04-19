@@ -127,6 +127,10 @@ object App extends IOApp {
           scala.collection.immutable.Map.empty
         ),
         EndpointRequestSymbolic(
+          EndpointId("list"),
+          scala.collection.immutable.Map.empty
+        ),
+        EndpointRequestSymbolic(
           EndpointId("add"),
           scala.collection.immutable.Map(
             EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))

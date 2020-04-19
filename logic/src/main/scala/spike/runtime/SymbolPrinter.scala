@@ -25,7 +25,7 @@ object ScalaSymbolPrinter extends SymbolPrinter {
           .map { case (name, value) => s"$name=${p(value)}" }
           .mkString(", ")
 
-        s"$prePost:$methodName($paramsString)"
+        s"$prePost.$methodName($paramsString)"
     }
   }
 
