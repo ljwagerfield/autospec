@@ -53,58 +53,53 @@ class SetController()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
 }
 
 object App extends IOApp {
-  val apiId = ApiId("api")
-  val schema = ApplicationSchema(
-    List(
-      ApiDefinition(
-        apiId,
-        "http://localhost:9005"
+
+
+  val apiId: ApiId              = ApiId("api")
+  val schema: ApplicationSchema = ApplicationSchema(
+    ApiDefinition(apiId, "http://localhost:9005") :: Nil,
+    EndpointDefinition(
+      EndpointId("list"),
+      apiId,
+      HttpMethod.Get,
+      "/foos",
+      Nil,
+      Nil,
+      List(
+        Predicate.Equals(
+          Count(Distinct(ResponseBody)),
+          Count(ResponseBody)
+        ),
+        Predicate.Equals(
+          Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
+          ResponseBody
+        )
       )
-    ),
-    List(
-      EndpointDefinition(
-        EndpointId("list"),
-        apiId,
-        HttpMethod.Get,
-        "/foos",
-        Nil,
-        Nil,
-        List(
-          Predicate.Equals(
-            Count(Distinct(ResponseBody)),
-            Count(ResponseBody)
-          ),
-          Predicate.Equals(
-            Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
-            ResponseBody
-          )
+    ) ::
+    EndpointDefinition(
+      EndpointId("add"),
+      apiId,
+      HttpMethod.Post,
+      "/foos",
+      List(
+        EndpointParameter(
+          EndpointParameterName("value"),
+          EndpointParameterType.Int32,
+          EndpointParameterLocation.Body,
+          EndpointParameterSerialization.ToString("text/plain")
         )
       ),
-      EndpointDefinition(
-        EndpointId("add"),
-        apiId,
-        HttpMethod.Post,
-        "/foos",
-        List(
-          EndpointParameter(
-            EndpointParameterName("value"),
-            EndpointParameterType.Int32,
-            EndpointParameterLocation.Body,
-            EndpointParameterSerialization.ToString("text/plain")
-          )
+      Nil,
+      List(
+        Predicate.Contains(
+          Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
+          Parameter(EndpointParameterName("value"))
         ),
-        Nil,
-        List(
-          Predicate.Contains(
-            Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-            Parameter(EndpointParameterName("value"))
-          ),
-          Predicate.Equals(
-            StatusCode, Literal(200)
-          )
+        Predicate.Equals(
+          StatusCode, Literal(200)
         )
       )
-    )
+    ) :: Nil
   )
 
   def run(args: List[String]): IO[ExitCode] = {

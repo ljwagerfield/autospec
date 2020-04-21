@@ -137,7 +137,7 @@ object ResponseValidator {
     val newHistory =
       if (endpoint.isMutating) {
         // Truncate history (prevent it from growing indefinitely).
-        // Histories are likely to stay very short, containing usually fewer than 10 requests: they are truncated on
+        // Histories are likely to stay very short, containing usually fewer than 100 requests: they are truncated on
         // each mutating request, leaving behind only the current request, and any requests depended on by deferred
         // conditions of the current request AND any requests depended on by prior request's conditions that depended
         // on the current request.
