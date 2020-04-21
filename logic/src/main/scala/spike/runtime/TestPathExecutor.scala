@@ -5,6 +5,7 @@ import cats.data.Chain
 import cats.implicits._
 import fs2.Stream
 import monix.eval.Task
+import playground.EndpointRequestResponse
 import spike.runtime.ConditionStatus.ResolvedConditionStatus
 import spike.runtime.TestPathExecutor.ValidatedRequestResponse
 import spike.runtime.resolvers.RuntimeSymbolResolver
@@ -24,29 +25,37 @@ class TestPathExecutor(requestExecutor: EndpointRequestExecutor) {
     filtered.compile.toList
   }
 
-  def stream(schema: ApplicationSchema, path: List[EndpointRequestSymbolic]): Stream[Task, ValidatedRequestResponse] = {
-    val initialState     = Chain.empty[EndpointResponse] -> ResponseValidationState.initial
-    val requestStream    = Stream.emits[Task, EndpointRequestSymbolic](path)
-    val validationStream = requestStream.evalMapAccumulate(initialState) { (oldStreamState, requestSymbolic) =>
-      val (oldHistory, oldValidationState) = oldStreamState
-      val request                          = resolveRequestSymbols(requestSymbolic, oldHistory)
-      requestExecutor.execute(schema, request).map { response =>
-        val validationResult   = ResponseValidator.validateConditions(schema, oldValidationState, response)
-        val newHistory         = oldHistory :+ response.response
-        val newValidationState = validationResult.state
-        val newStreamState     = (newHistory, newValidationState)
-        val streamItem         = ValidatedRequestResponse(
-          request            = request,
+  def stream(schema: ApplicationSchema, path: List[EndpointRequestSymbolic]): Stream[Task, ValidatedRequestResponse] =
+    requestStream(path)
+      .through(responseStream(schema))
+      .through(validationStream(schema))
+
+  private def requestStream(path: List[EndpointRequestSymbolic]): Stream[Task, EndpointRequestSymbolic] =
+    Stream.emits[Task, EndpointRequestSymbolic](path)
+
+  private def responseStream(schema: ApplicationSchema)(requestStream: Stream[Task, EndpointRequestSymbolic]): Stream[Task, (EndpointRequestSymbolic, EndpointRequestResponse)] =
+    requestStream
+      .evalMapAccumulate(Chain.empty[EndpointResponse]) { (oldHistory, requestSymbolic) =>
+        val request = resolveRequestSymbols(requestSymbolic, oldHistory)
+        requestExecutor.execute(schema, request).map { response =>
+          val newHistory         = oldHistory :+ response.response
+          newHistory -> (requestSymbolic -> response)
+        }
+      }
+      .map(_._2)
+
+  private def validationStream(schema: ApplicationSchema)(responseStream: Stream[Task, (EndpointRequestSymbolic, EndpointRequestResponse)]): Stream[Task, ValidatedRequestResponse] =
+    ResponseValidator
+      .stream(schema, responseStream)(_._2)
+      .map { case ((requestSymbolic, response), resolvedConditions) =>
+        ValidatedRequestResponse(
+          request            = response.request,
           requestId          = response.requestId,
           requestSymbolic    = requestSymbolic,
           response           = response.response,
-          resolvedConditions = validationResult.resolvedConditions.map { case (id, status) => id.withoutState -> status }
+          resolvedConditions = resolvedConditions.collect { case (id, status: ResolvedConditionStatus) => id.withoutState -> status }
         )
-        newStreamState -> streamItem
       }
-    }
-    validationStream.map(_._2)
-  }
 
   private def resolveRequestSymbols(request: EndpointRequestSymbolic, history: Chain[EndpointResponse]): EndpointRequest =
     EndpointRequest(

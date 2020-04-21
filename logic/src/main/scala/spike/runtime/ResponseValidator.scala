@@ -10,13 +10,33 @@ import spike.runtime.ConditionStatus.{Failed, Passed, Unresolvable}
 import spike.runtime.resolvers.BaseSymbolResolver
 import spike.schema.{ApplicationSchema, ConditionIdWithState}
 import spike.{SchemaSymbols => S}
+import fs2.Stream
+import monix.eval.Task
 
 import scala.collection.immutable.{Map => ScalaMap}
 
 object ResponseValidator {
   private type EarliestRequestDependency = EndpointRequestId
 
-  def validateConditions(
+  /**
+   * Streaming alternative of the online algorithm (this function encapsulates state management).
+   */
+  def stream[A](
+    schema: ApplicationSchema,
+    responseStream: Stream[Task, A])(
+    f: A => EndpointRequestResponse
+  ): Stream[Task, (A, Map[ConditionIdWithState, ConditionStatus])] =
+    responseStream
+      .mapAccumulate(ResponseValidationState.initial) { (oldState, response) =>
+        val ResponseValidationResult(result, newState) = validate(schema, oldState, f(response))
+        (newState, (response, result))
+      }
+      .map(_._2)
+
+  /**
+   * Online algorithm for validating server responses.
+   */
+  def validate(
     schema: ApplicationSchema,
     state: ResponseValidationState,
     requestResponse: EndpointRequestResponse

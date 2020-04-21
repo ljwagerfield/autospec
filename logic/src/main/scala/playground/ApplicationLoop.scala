@@ -1,14 +1,14 @@
 package playground
 
+import cats.implicits._
 import monix.eval.Task
 import spike.runtime.EndpointRequestExecutor
-import cats.implicits._
 
 class ApplicationLoop(
-                       requestGenerator: RequestGenerator,
-                       requestExecutor: EndpointRequestExecutor,
-                       requestResponseRepository: RequestResponseRepository,
-                       opportunitiesRepository: OpportunitiesRepository
+  requestGenerator: RequestGenerator,
+  requestExecutor: EndpointRequestExecutor,
+  requestResponseRepository: RequestResponseRepository,
+  opportunitiesRepository: OpportunitiesRepository
 ) {
   def runOnce(session: Session): Task[Option[EndpointRequestResponse]] =
     requestGenerator.nextRequest(session).flatMap(_.traverse { case RequestGeneratorResult(opportunities, request) =>
