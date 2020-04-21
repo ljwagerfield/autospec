@@ -1,3 +1,3 @@
 package spike.runtime
 
-case class TestPathRequestIndex(testPathId: TestPathId, requestIndex: Int)
+case class TestPathRequestIndex(testPathId: TestPlanId, requestIndex: Int)

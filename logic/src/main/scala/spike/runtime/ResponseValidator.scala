@@ -6,7 +6,7 @@ import cats.implicits._
 import io.circe.Json
 import playground.EndpointRequestResponse
 import spike.common.FunctorExtensions._
-import spike.runtime.ConditionStatus.{Failed, Passed, Unresolvable}
+import spike.runtime.ConditionStatus.{Failed, Passed, ResolvedConditionStatus, Unresolvable}
 import spike.runtime.resolvers.BaseSymbolResolver
 import spike.schema.{ApplicationSchema, ConditionIdWithState}
 import spike.{SchemaSymbols => S}
@@ -25,11 +25,11 @@ object ResponseValidator {
     schema: ApplicationSchema,
     responseStream: Stream[Task, A])(
     f: A => EndpointRequestResponse
-  ): Stream[Task, (A, Map[ConditionIdWithState, ConditionStatus])] =
+  ): Stream[Task, (A, ValidatedRequestResponse)] =
     responseStream
       .mapAccumulate(ResponseValidationState.initial) { (oldState, response) =>
         val ResponseValidationResult(result, newState) = validate(schema, oldState, f(response))
-        (newState, (response, result))
+        (newState, (response, ValidatedRequestResponse(f(response), result)))
       }
       .map(_._2)
 
@@ -157,7 +157,7 @@ object ResponseValidator {
     )
 
     ResponseValidationResult(
-      processed,
+      processed.collect { case (id, state: ResolvedConditionStatus) => id.withoutState -> state },
       ResponseValidationState(
         newDeferred,
         nextMutatingRequestId,

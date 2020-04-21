@@ -4,9 +4,8 @@ import cats.Id
 import cats.implicits._
 import io.circe.Json
 import monix.eval.Task
-import playground.EndpointRequestResponse
+import playground.{EndpointRequestResponse, ValidationStreamFromTestPlan}
 import spike.common.ULID
-import spike.runtime.TestPathExecutor.ValidatedRequestResponse
 import spike.runtime._
 import spike.runtime.resolvers.SymbolConverter
 import spike.schema.{ApplicationSchema, ConditionIdWithProvenance}
@@ -43,7 +42,8 @@ object ResponseValidatorDebugger {
         }
     }
 
-    val pathExecutor = new TestPathExecutor(requestExecutor)
+    val validationStream = new ValidationStreamFromTestPlan(requestExecutor)
+    val pathExecutor     = new TestPlanExecutor(validationStream)
     val responses = pathExecutor.execute(schema, requests, haltOnFailure = false).runSyncUnsafe()
     responses.map { response =>
       EndpointRequestWithChecks(
@@ -53,7 +53,7 @@ object ResponseValidatorDebugger {
     }
   }
 
-  private def resolve(schema: ApplicationSchema, history: List[ValidatedRequestResponse])(conditionId: ConditionIdWithProvenance): R.Predicate = {
+  private def resolve(schema: ApplicationSchema, history: List[ValidatedRequestResponseWithSymbols])(conditionId: ConditionIdWithProvenance): R.Predicate = {
     val (response, requestIndex) = history.zipWithIndex.find(_._1.requestId === conditionId.provenance).get
     val endpoint                 = schema.endpoint(response.request.endpointId)
     val sPredicate               = endpoint.conditions(conditionId.conditionId)
@@ -61,13 +61,13 @@ object ResponseValidatorDebugger {
     rPredicate
   }
 
-  private def convertPredicate(history: List[ValidatedRequestResponse], requestIndex: Int, predicate: S.Predicate): R.Predicate =
+  private def convertPredicate(history: List[ValidatedRequestResponseWithSymbols], requestIndex: Int, predicate: S.Predicate): R.Predicate =
     SymbolConverter.convertPredicate(S, R)(predicate)(convertOwnSymbol(history, requestIndex, _))
 
-  private def convertSymbol(history: List[ValidatedRequestResponse], requestIndex: Int, symbol: S.Symbol): R.Symbol =
+  private def convertSymbol(history: List[ValidatedRequestResponseWithSymbols], requestIndex: Int, symbol: S.Symbol): R.Symbol =
     SymbolConverter.convertSymbol(S, R)(symbol)(convertOwnSymbol(history, requestIndex, _))
 
-  private def convertOwnSymbol(history: List[ValidatedRequestResponse], requestIndex: Int, symbol: S.OwnSymbols): Id[R.Symbol] =
+  private def convertOwnSymbol(history: List[ValidatedRequestResponseWithSymbols], requestIndex: Int, symbol: S.OwnSymbols): Id[R.Symbol] =
     symbol match {
       case S.ResponseBody    => R.ResponseBody(requestIndex).pure[Id]
       case S.StatusCode      => R.StatusCode(requestIndex).pure[Id]

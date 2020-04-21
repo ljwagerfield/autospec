@@ -4,24 +4,25 @@ import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
+import playground.ValidationStreamFromTestPlan
 import spike.runtime.ConditionStatus.{Failed, Passed}
-import spike.runtime.TestPathExecutor.ValidatedRequestResponse
 import spike.schema.ApplicationSchema
 
 class ConsoleApp()(implicit scheduler: Scheduler) {
   private val printer: SymbolPrinter = ScalaSymbolPrinter
 
-  def run(schema: ApplicationSchema, paths: List[TestPath]): Task[Unit] =
+  def run(schema: ApplicationSchema, paths: List[TestPlan]): Task[Unit] =
     AsyncHttpClient.resource[Task]().use { httpClient =>
       val httpRequestExecutor     = new HttpRequestExecutor(httpClient)
       val endpointRequestExecutor = new EndpointRequestExecutorImpl(httpRequestExecutor)
-      val testPathExecutor        = new TestPathExecutor(endpointRequestExecutor)
+      val validationStream        = new ValidationStreamFromTestPlan(endpointRequestExecutor)
+      val testPathExecutor        = new TestPlanExecutor(validationStream)
       testPathExecutor.executeMany(schema, paths, haltOnFailure = true).map { testResults =>
         printResults(schema, paths, testResults)
       }
     }
 
-  private def printResults(schema: ApplicationSchema, paths: List[TestPath], testResults: Map[TestPathId, List[ValidatedRequestResponse]]): Unit = {
+  private def printResults(schema: ApplicationSchema, paths: List[TestPlan], testResults: Map[TestPlanId, List[ValidatedRequestResponseWithSymbols]]): Unit = {
     def color(failed: Boolean) = if (failed) Console.RED else Console.GREEN
 
     println(s"${color(false)}Tests:")

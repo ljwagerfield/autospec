@@ -1,14 +1,9 @@
 package spike.runtime
 
 import spike.runtime.ConditionStatus.ResolvedConditionStatus
-import spike.schema.ConditionIdWithState
+import spike.schema.ConditionIdWithProvenance
 
 case class ResponseValidationResult(
-  completedConditions: Map[ConditionIdWithState, ConditionStatus],
+  resolvedConditions: Map[ConditionIdWithProvenance, ResolvedConditionStatus],
   state: ResponseValidationState
-) {
-  def resolvedConditions: Map[ConditionIdWithState, ResolvedConditionStatus] =
-    completedConditions.collect {
-      case (id, status: ResolvedConditionStatus) => id -> status
-    }
-}
+)

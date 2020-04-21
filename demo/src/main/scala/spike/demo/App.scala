@@ -15,7 +15,7 @@ import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
 import spike.RuntimeSymbols
 import spike.SchemaSymbols._
-import spike.runtime.{ConsoleApp, EndpointRequestSymbolic, TestPath, TestPathId}
+import spike.runtime.{ConsoleApp, EndpointRequestSymbolic, TestPlan, TestPlanId}
 import spike.schema._
 
 class SetController()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
@@ -113,8 +113,8 @@ object App extends IOApp {
   def run(args: List[String]): IO[ExitCode] = {
     implicit val scheduler: Scheduler = Scheduler.traced
 
-    val testPath = TestPath(
-      TestPathId("example-test"),
+    val testPath = TestPlan(
+      TestPlanId("example-test"),
       Chain(
         EndpointRequestSymbolic(
           EndpointId("add"),

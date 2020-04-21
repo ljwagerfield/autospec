@@ -40,7 +40,7 @@ abstract class ResponseValidatorSpecBase extends BaseSpec {
   }
 
   def test(requests: (EndpointRequestSymbolic, ((TestPathRequestIndex, EndpointRequestSymbolic, Set[Predicate])) => Unit)*)(implicit schema: ApplicationSchema): Unit = {
-    val testPathId = TestPathId("example-test")
+    val testPathId = TestPlanId("example-test")
 
     val conditions = requests
       .zipWithIndex
