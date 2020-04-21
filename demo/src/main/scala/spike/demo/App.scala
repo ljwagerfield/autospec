@@ -1,9 +1,7 @@
 package spike.demo
 
-import cats.data.Chain
 import cats.effect._
 import cats.implicits._
-import io.circe.Json
 import io.circe.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler
@@ -13,9 +11,8 @@ import org.http4s.dsl.Http4sDsl
 import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
-import spike.RuntimeSymbols
 import spike.SchemaSymbols._
-import spike.runtime.{ConsoleApp, EndpointRequestSymbolic, TestPlan, TestPlanId}
+import spike.runtime.applications.GeneratorConsoleApp
 import spike.schema._
 
 class SetController()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
@@ -113,46 +110,47 @@ object App extends IOApp {
   def run(args: List[String]): IO[ExitCode] = {
     implicit val scheduler: Scheduler = Scheduler.traced
 
-    val testPath = TestPlan(
-      TestPlanId("example-test"),
-      Chain(
-        EndpointRequestSymbolic(
-          EndpointId("add"),
-          scala.collection.immutable.Map(
-            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
-          )
-        ),
-        EndpointRequestSymbolic(
-          EndpointId("list"),
-          scala.collection.immutable.Map.empty
-        ),
-        EndpointRequestSymbolic(
-          EndpointId("list"),
-          scala.collection.immutable.Map.empty
-        ),
-        EndpointRequestSymbolic(
-          EndpointId("add"),
-          scala.collection.immutable.Map(
-            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
-          )
-        ),
-        EndpointRequestSymbolic(
-          EndpointId("add"),
-          scala.collection.immutable.Map(
-            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(52))
-          )
-        ),
-        EndpointRequestSymbolic(
-          EndpointId("list"),
-          scala.collection.immutable.Map.empty
-        )
-      )
-    )
+//    val testPath = TestPlan(
+//      TestPlanId("example-test"),
+//      Chain(
+//        EndpointRequestSymbolic(
+//          EndpointId("add"),
+//          scala.collection.immutable.Map(
+//            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
+//          )
+//        ),
+//        EndpointRequestSymbolic(
+//          EndpointId("list"),
+//          scala.collection.immutable.Map.empty
+//        ),
+//        EndpointRequestSymbolic(
+//          EndpointId("list"),
+//          scala.collection.immutable.Map.empty
+//        ),
+//        EndpointRequestSymbolic(
+//          EndpointId("add"),
+//          scala.collection.immutable.Map(
+//            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
+//          )
+//        ),
+//        EndpointRequestSymbolic(
+//          EndpointId("add"),
+//          scala.collection.immutable.Map(
+//            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(52))
+//          )
+//        ),
+//        EndpointRequestSymbolic(
+//          EndpointId("list"),
+//          scala.collection.immutable.Map.empty
+//        )
+//      )
+//    )
 
     Task.gather(
       List(
         new SetController().run(),
-        new ConsoleApp().run(schema, List(testPath))
+//        new TestPlanConsoleApp().run(schema, List(testPath)),
+        new GeneratorConsoleApp().run(schema)
       )
     ).as(ExitCode.Success).to[IO]
   }

@@ -15,7 +15,11 @@ import spike.{IntermediateSymbols => I, SchemaSymbols => S}
 
 import scala.util.Random
 
-class RequestGenerator(responseRepository: RequestResponseRepository, opportunityRepository: OpportunitiesRepository, config: Config) {
+class RequestGenerator(
+  responseRepository: RequestResponseRepository,
+  opportunitiesRepository: OpportunitiesRepository,
+  config: Config
+) {
   private case class ApplicationState(
     previousResponses: Map[EndpointId, List[EndpointRequestResponse]],
     previousOpportunities: List[Opportunities]
@@ -33,7 +37,7 @@ class RequestGenerator(responseRepository: RequestResponseRepository, opportunit
   def nextRequest(session: Session): Task[Option[RequestGeneratorResult]] =
     for {
       previousResponses     <- responseRepository.getPreviousResponses(session.id, maxHistory)
-      previousOpportunities <- opportunityRepository.getPreviousOpportunities(session.id, maxHistory)
+      previousOpportunities <- opportunitiesRepository.getPreviousOpportunities(session.id, maxHistory)
     } yield {
       nextRequest(
         session.schema,

@@ -1,5 +1,7 @@
 package spike.schema
 
+import spike.SchemaSymbols.Predicate
+
 case class ApplicationSchema(apis: List[ApiDefinition], endpoints: List[EndpointDefinition]) {
   val apiMap: Map[ApiId, ApiDefinition] = apis.map(x => x.id -> x).toMap
   val endpointMap: Map[EndpointId, EndpointDefinition] = endpoints.map(x => x.id -> x).toMap
@@ -9,4 +11,7 @@ case class ApplicationSchema(apis: List[ApiDefinition], endpoints: List[Endpoint
 
   def endpoint(endpointId: EndpointId): EndpointDefinition =
     endpointMap.getOrElse(endpointId, throw new Exception(s"Cannot find endpoint '$endpointId' in schema."))
+
+  def condition(conditionId: ConditionId): Predicate =
+    endpoint(conditionId.endpointId).conditions(conditionId)
 }

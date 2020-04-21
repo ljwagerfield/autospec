@@ -1,4 +1,4 @@
-package spike.runtime
+package spike.runtime.applications
 
 import cats.implicits._
 import monix.eval.Task
@@ -6,9 +6,10 @@ import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
 import playground.ValidationStreamFromTestPlan
 import spike.runtime.ConditionStatus.{Failed, Passed}
+import spike.runtime._
 import spike.schema.ApplicationSchema
 
-class ConsoleApp()(implicit scheduler: Scheduler) {
+class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
   private val printer: SymbolPrinter = ScalaSymbolPrinter
 
   def run(schema: ApplicationSchema, paths: List[TestPlan]): Task[Unit] =
