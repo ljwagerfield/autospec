@@ -8,9 +8,13 @@ The plan is to dockerise the service and create a specification language (i.e. `
 
 ## Demo
 
-1.  Demo REST API implementation: [`testbot.demo.RestApi`](blob/master/demo/src/main/scala/spike/demo/RestApi.scala)
+1.  Example REST API (can be written in anything - e.g. could be a separate Python process):
 
-2.  Demo TestBot schema: [`testbot.demo.RestApiSchema`](blob/master/demo/src/main/scala/spike/demo/RestApiSchema.scala)
+    [`testbot.demo.RestApi`](demo/src/main/scala/testbot/demo/RestApi.scala)
+
+2.  Example schema:
+
+    [`testbot.demo.RestApiSchema`](demo/src/main/scala/testbot/demo/RestApiSchema.scala)
 
 Use TestBot to crawl & test the REST API:
 
