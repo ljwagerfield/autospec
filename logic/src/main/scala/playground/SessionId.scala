@@ -1,5 +1,5 @@
 package playground
 
-import testbot.common.ULID
+import autospec.common.ULID
 
 case class SessionId(value: ULID)

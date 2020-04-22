@@ -4,14 +4,14 @@ import cats.data.NonEmptyList
 import cats.implicits._
 import io.circe.Json
 import monix.eval.Task
-import testbot.IntermediateSymbols.{Predicate => IP}
-import testbot.SchemaSymbols.{Predicate => SP}
-import testbot.common.FunctorExtensions._
-import testbot.common.MathUtils._
-import testbot.runtime.EndpointRequest
-import testbot.runtime.resolvers.IntermediateSymbolResolver
-import testbot.schema._
-import testbot.{IntermediateSymbols => I, SchemaSymbols => S}
+import autospec.IntermediateSymbols.{Predicate => IP}
+import autospec.SchemaSymbols.{Predicate => SP}
+import autospec.common.FunctorExtensions._
+import autospec.common.MathUtils._
+import autospec.runtime.EndpointRequest
+import autospec.runtime.resolvers.IntermediateSymbolResolver
+import autospec.schema._
+import autospec.{IntermediateSymbols => I, SchemaSymbols => S}
 
 import scala.util.Random
 

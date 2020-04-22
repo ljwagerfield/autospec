@@ -1,6 +1,6 @@
 package playground
 
-import testbot.runtime.{EndpointRequest, EndpointRequestId, EndpointResponse}
+import autospec.runtime.{EndpointRequest, EndpointRequestId, EndpointResponse}
 
 case class EndpointRequestResponse(
   requestId: EndpointRequestId,

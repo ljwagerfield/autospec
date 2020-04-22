@@ -1,10 +1,10 @@
-package testbot
+package autospec
 
 import cats.data.NonEmptyList
 import org.scalactic.source
-import testbot.RuntimeSymbols._
-import testbot.runtime._
-import testbot.schema.{ApiDefinition, ApiId, ApplicationSchema, HttpMethod}
+import autospec.RuntimeSymbols._
+import autospec.runtime._
+import autospec.schema.{ApiDefinition, ApiId, ApplicationSchema, HttpMethod}
 
 abstract class ResponseValidatorSpecBase extends BaseSpec {
   val apiId: ApiId                 = ApiId("api")

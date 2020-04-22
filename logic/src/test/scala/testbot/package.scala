@@ -1,6 +1,6 @@
-import testbot.schema.{ApiDefinition, ApiId, ApplicationSchema, EndpointDefinition, EndpointId}
+import autospec.schema.{ApiDefinition, ApiId, ApplicationSchema, EndpointDefinition, EndpointId}
 
-package object testbot {
+package object autospec {
   val testApiId: ApiId = ApiId("foo")
 
   def currentMethodEndpointId: EndpointId =

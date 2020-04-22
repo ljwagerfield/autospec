@@ -1,6 +1,6 @@
 package playground
 
-import testbot.runtime.EndpointRequest
+import autospec.runtime.EndpointRequest
 
 case class RequestGeneratorResult(
   opportunities: Opportunities,

@@ -6,7 +6,7 @@ import com.github.ghik.silencer.silent
 import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
-import testbot.common.MathUtils.weightedRandom
+import autospec.common.MathUtils.weightedRandom
 
 // Until it looks like a Dinosaur...
 // [X] Make it run.

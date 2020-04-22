@@ -89,7 +89,7 @@ lazy val logic = (project in file("logic"))
   .dependsOn(model)
   .settings(commonScalaSettings: _*)
   .settings(
-    name                 := "testbot-logic",
+    name                 := "autospec-logic",
     libraryDependencies ++= Seq(
       "org.typelevel"   %% "cats-core"                % catsVersion,
       "org.typelevel"   %% "cats-effect"              % catsVersion,
@@ -110,13 +110,13 @@ lazy val macros = (project in file("macros"))
   .dependsOn(model)
   .settings(commonScalaSettings: _*)
   .settings(
-    name                 := "testbot-macros"
+    name                 := "autospec-macros"
   )
 
 lazy val model = (project in file("model"))
   .settings(commonScalaSettings: _*)
   .settings(
-    name                 := "testbot-model",
+    name                 := "autospec-model",
     libraryDependencies ++= Seq(
       "org.typelevel"   %% "cats-core"                % catsVersion,
       "org.typelevel"   %% "cats-effect"              % catsVersion,
@@ -129,7 +129,7 @@ lazy val demo = (project in file("demo"))
   .dependsOn(logic)
   .settings(commonScalaSettings: _*)
   .settings(
-    name                 := "testbot-demo",
+    name                 := "autospec-demo",
     libraryDependencies ++= Seq(
       "ch.qos.logback"  % "logback-classic"           % "1.2.3",
       "org.http4s"      %% "http4s-blaze-server"      % "0.21.0-RC2"

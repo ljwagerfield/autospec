@@ -1,4 +1,4 @@
-package testbot
+package autospec
 
 import cats.effect.Clock
 import cats.effect.concurrent.Ref

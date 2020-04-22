@@ -1,18 +1,18 @@
-package testbot
+package autospec
 
-import testbot.RuntimeSymbols.Predicate._
-import testbot.RuntimeSymbols._
-import testbot.{SchemaSymbols => S}
-import testbot.SchemaSymbols.{Predicate => SP}
-import testbot.runtime.EndpointRequestSymbolic
-import testbot.schema.{ApplicationSchema, EndpointDefinition, EndpointId, EndpointParameterName}
+import autospec.RuntimeSymbols.Predicate._
+import autospec.RuntimeSymbols._
+import autospec.{SchemaSymbols => S}
+import autospec.SchemaSymbols.{Predicate => SP}
+import autospec.runtime.EndpointRequestSymbolic
+import autospec.schema.{ApplicationSchema, EndpointDefinition, EndpointId, EndpointParameterName}
 
 import scala.collection.immutable.{Map => SMap}
 
 class ResponseValidatorSpec extends ResponseValidatorSpecBase {
   "ResponseValidator" should {
     "immediately check postconditions that don't contain references to other endpoints" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         add(42) -> checks(
           Equals(StatusCode(0), Literal(200))
@@ -21,7 +21,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "support preconditions that refer to other endpoints" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         list() -> checks(
           Equals(Count(Distinct(ResponseBody(0))), Count(ResponseBody(0)))
@@ -38,7 +38,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "defer postconditions that contain references to other endpoints" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         add(42) -> checks(
           Equals(StatusCode(0), Literal(200))
@@ -51,7 +51,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "only consume the last set of deferred postconditions for an endpoint (when calling the same mutation endpoint twice)" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         add(42) -> checks(
           Equals(StatusCode(0), Literal(200))
@@ -67,7 +67,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "only consume the last set of deferred postconditions for an endpoint (when calling two different mutation endpoints)" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         add(42) -> checks(
           Equals(StatusCode(0), Literal(200))
@@ -86,7 +86,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     // number of GET requests to validate endpoint postconditions in some situations. Complexity: identifying state
     // boundaries / which requests touch state shared by other requests.
     "only consume the last set of deferred postconditions for an endpoint (when calling two mutation endpoints that touch different state)" in {
-      import testbot.SetPairApi.Client._
+      import autospec.SetPairApi.Client._
       test(
         addA(42) -> checks(
           Equals(StatusCode(0), Literal(200))
@@ -106,7 +106,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "greedily consume deferred postconditions" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         add(42) -> checks(
           Equals(StatusCode(0), Literal(200))
@@ -124,7 +124,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "allow identical requests with identical responses" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         add(42) -> checks(
           Equals(StatusCode(0), Literal(200))
@@ -144,7 +144,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "allow identical requests with different responses" in {
-      import testbot.ListApi.Client._
+      import autospec.ListApi.Client._
       test(
         add(42) -> checks(
           Equals(StatusCode(0), Literal(200))
@@ -168,7 +168,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "use previous endpoint as a 'reverse lookup' endpoint" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         add(42) -> checks(
           Equals(StatusCode(0), Literal(200))
@@ -185,7 +185,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "not check preconditions that refer to other endpoints if mutations occur in-between" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         list() -> checks(
           Equals(Count(Distinct(ResponseBody(0))), Count(ResponseBody(0)))
@@ -205,7 +205,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "prevent postconditions referring to earlier endpoints if there have since been related mutations" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         list() -> checks(
           Equals(Count(Distinct(ResponseBody(0))), Count(ResponseBody(0)))
@@ -222,7 +222,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "prevent postconditions referring to earlier endpoints if there has since been a mutation, even if said earlier endpoint is kept in-scope by a condition deferred by the mutation" in {
-      import testbot.ListApi.Client._
+      import autospec.ListApi.Client._
       test(
         list() -> checks(
 
@@ -249,7 +249,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     // number of GET requests to validate endpoint postconditions in some situations. Complexity: identifying state
     // boundaries / which requests touch state shared by other requests.
     "prevent postconditions referring to earlier endpoints if there have since been unrelated mutations" in {
-      import testbot.SetPairApi.Client._
+      import autospec.SetPairApi.Client._
       test(
         listA() -> checks(
           Equals(Count(Distinct(ResponseBody(0))), Count(ResponseBody(0)))
@@ -265,7 +265,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "allow endpoints to be explicitly marked as pure" in {
-      import testbot.SetApi.Client._
+      import autospec.SetApi.Client._
       test(
         add(42) -> checks(
           Equals(StatusCode(0), Literal(200))

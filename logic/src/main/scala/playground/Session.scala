@@ -1,5 +1,5 @@
 package playground
 
-import testbot.schema.ApplicationSchema
+import autospec.schema.ApplicationSchema
 
 case class Session(id: SessionId, schema: ApplicationSchema)

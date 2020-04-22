@@ -1,5 +1,5 @@
 package playground
 
-import testbot.schema.EndpointId
+import autospec.schema.EndpointId
 
 case class Opportunities(possibleRequests: Set[EndpointId])

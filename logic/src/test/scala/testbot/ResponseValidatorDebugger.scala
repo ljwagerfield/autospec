@@ -1,18 +1,18 @@
-package testbot
+package autospec
 
 import cats.Id
 import cats.implicits._
 import io.circe.Json
 import monix.eval.Task
 import playground.{EndpointRequestResponse, ValidationStreamFromTestPlan}
-import testbot.common.ULID
-import testbot.runtime._
-import testbot.runtime.resolvers.SymbolConverter
-import testbot.schema.{ApplicationSchema, ConditionIdWithProvenance}
-import testbot.{RuntimeSymbols => R, SchemaSymbols => S}
+import autospec.common.ULID
+import autospec.runtime._
+import autospec.runtime.resolvers.SymbolConverter
+import autospec.schema.{ApplicationSchema, ConditionIdWithProvenance}
+import autospec.{RuntimeSymbols => R, SchemaSymbols => S}
 
 /**
- * Transforms the output of [[testbot.runtime.ResponseValidator]] into a more testable structure.
+ * Transforms the output of [[autospec.runtime.ResponseValidator]] into a more testable structure.
  */
 object ResponseValidatorDebugger {
   /**

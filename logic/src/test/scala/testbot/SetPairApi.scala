@@ -1,9 +1,9 @@
-package testbot
+package autospec
 
-import testbot.SchemaSymbols._
-import testbot.macros.ClientMacros
-import testbot.runtime.EndpointRequestSymbolic
-import testbot.schema._
+import autospec.SchemaSymbols._
+import autospec.macros.ClientMacros
+import autospec.runtime.EndpointRequestSymbolic
+import autospec.schema._
 
 /**
  * Holds two independent sets 'A' and 'B' and provides mutators/accessors to each.

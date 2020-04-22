@@ -1,7 +1,7 @@
 package playground
 
 import cats.data.NonEmptyList
-import testbot.runtime.EndpointRequest
-import testbot.schema.EndpointId
+import autospec.runtime.EndpointRequest
+import autospec.schema.EndpointId
 
 case class CallableEndpoint(endpointId: EndpointId, possibleRequests: NonEmptyList[EndpointRequest])
