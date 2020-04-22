@@ -18,11 +18,11 @@ The plan is to dockerise the service and create a specification language (i.e. `
 
 Use TestBot to crawl & test the REST API:
 
-    sbt 'run-main testbot.demo.RunGenerator'
+    sbt 'demo/runMain testbot.demo.RunGenerator'
 
 Use TestBot to test a specific path through the REST API:
 
-    sbt 'run-main testbot.demo.RunTestPlan'
+    sbt 'demo/runMain testbot.demo.RunTestPlan'
 
 ## Points of interest
 
