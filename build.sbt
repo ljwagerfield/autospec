@@ -95,6 +95,7 @@ lazy val logic = (project in file("logic"))
       "org.typelevel"   %% "cats-effect"              % catsVersion,
       "org.typelevel"   %% "alleycats-core"           % catsVersion,
       "io.monix"        %% "monix"                    % "3.1.0",
+      "org.slf4j"       %  "slf4j-api"                % "1.7.30",
       "org.http4s"      %% "http4s-dsl"               % http4sVersion,
       "org.http4s"      %% "http4s-async-http-client" % http4sVersion,
       "org.http4s"      %% "http4s-circe"             % http4sVersion,

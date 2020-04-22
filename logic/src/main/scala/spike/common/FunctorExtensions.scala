@@ -47,6 +47,13 @@ object FunctorExtensions {
       value.uncons.fold(Chain.empty[A])(_._2)
   }
 
+  implicit class RichOption[A](val value: Option[A]) extends AnyVal {
+    def ifNone(thunk: => Unit): Option[A] = {
+      thunk
+      value
+    }
+  }
+
   implicit class RichMapM[K, V, F[_]](val value: Map[K, F[V]]) extends AnyVal {
     def merge(map: Map[K, F[V]])(implicit M: Monoid[F[V]]): Map[K, F[V]] =
       map.foldLeft(value) { (result, kvp) =>

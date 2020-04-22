@@ -1,23 +1,22 @@
 package spike.runtime
 
 import alleycats.std.all._
-import cats.data.{Chain, EitherT, OptionT, State}
+import cats.data.Chain
 import cats.implicits._
+import fs2.Stream
 import io.circe.Json
+import monix.eval.Task
 import playground.EndpointRequestResponse
 import spike.common.FunctorExtensions._
 import spike.runtime.ConditionStatus.{Failed, Passed, ResolvedConditionStatus, Unresolvable}
 import spike.runtime.resolvers.BaseSymbolResolver
+import spike.schema.SymbolExtensions._
 import spike.schema.{ApplicationSchema, ConditionIdWithState}
 import spike.{SchemaSymbols => S}
-import fs2.Stream
-import monix.eval.Task
 
 import scala.collection.immutable.{Map => ScalaMap}
 
 object ResponseValidator {
-  private type EarliestRequestDependency = EndpointRequestId
-
   /**
    * Streaming alternative of the online algorithm (this function encapsulates state management).
    */
@@ -41,46 +40,49 @@ object ResponseValidator {
     state: ResponseValidationState,
     requestResponse: EndpointRequestResponse
   ): ResponseValidationResult = {
-    val request       = requestResponse.request
-    val endpoint      = schema.endpoint(requestResponse.request.endpointId)
-    val ownConditions = endpoint.conditions.map {
-      case (conditionId, predicate) =>
-        (
-          ConditionIdWithState(
-            conditionId,
-            requestResponse.requestId,
-            requestResponse.requestId,
-            state.lastMutatingRequestId
-          ),
-          predicate
-        )
-    }
-    val deferredConditions = state.deferredConditions.getOrElse(request, Set.empty).toList
-    val allConditions      = ownConditions ++ deferredConditions.map(x => x -> schema.endpoint(x.conditionId.endpointId).conditions(x.conditionId)).toMap
-    val noForwardLookup    = (_: EndpointRequest) => None: Option[EndpointResponse]
-    val history            = state.history :+ requestResponse
+    val history = state.history :+ requestResponse
 
     def getResponse(id: EndpointRequestId) =
       history.find(_.requestId === id).getOrElse(throw new Exception("History was truncated incorrectly."))
 
     def getResponseAfter(after: EndpointRequestId, matching: EndpointRequest) =
-      history.findAfter(_.requestId === after, _.request === matching).map(_.response)
+      history.findAfter(_.requestId === after, _.request === matching)
 
     def getResponseBefore(before: EndpointRequestId, upTo: Option[EndpointRequestId], matching: EndpointRequest) = {
       require(upTo.forall(_.value < before.value))
-      OptionT(
-        State { (min: EarliestRequestDependency) =>
-          val dependency = history
-            .reverse
-            .findAfter(_.requestId === before, _.request === matching)
-            .filter(r => upTo.forall(_.value <= r.requestId.value))
-          val response  = dependency.map(_.response)
-          val newMinOpt = dependency.map(_.requestId).filter(_.value < min.value)
-          val newMin    = newMinOpt.getOrElse(min)
-          newMin -> response
-        }
-      )
+      history
+        .reverse
+        .findAfter(_.requestId === before, _.request === matching)
+        .filter(r => upTo.forall(_.value <= r.requestId.value))
     }
+
+    val endpoint      = schema.endpoint(requestResponse.request.endpointId)
+    val ownConditions = endpoint.conditions.map {
+      case (conditionId, predicate) =>
+        val requestId             = requestResponse.requestId
+        val lastMutatingRequestId = state.lastMutatingRequestId
+        val reverseLookup         = getResponseBefore(requestId, lastMutatingRequestId, _)
+        val earliestDependency    = findEarliestDependency(
+          schema,
+          reverseLookup,
+          requestResponse,
+          predicate
+        )
+        (
+          ConditionIdWithState(
+            conditionId           = conditionId,
+            provenance            = requestId,
+            earliestDependency    = earliestDependency,
+            lastMutatingRequestId = lastMutatingRequestId
+          ),
+          predicate
+        )
+    }
+    val request            = requestResponse.request
+    val deferredConditions = state.deferredConditions.getOrElse(request, Set.empty).toList
+    val allConditions      = ownConditions ++ deferredConditions.map(x => x -> schema.endpoint(x.conditionId.endpointId).conditions(x.conditionId)).toMap
+    val noForwardLookup    = (_: EndpointRequest) => None: Option[EndpointRequestResponse]
+
 
     val nextMutatingRequestId =
       if (endpoint.isMutating)
@@ -100,15 +102,15 @@ object ResponseValidator {
             val isPrecondition = condition.isPrecondition
             val reverseLookup  = getResponseBefore(requestId, condition.lastMutatingRequestId, _)
             val forwardLookup  = if (isPrecondition) noForwardLookup else getResponseAfter(requestId, _)
-            val (earliestDependency, resolution) = resolvePredicate(
+            val resolution     = resolvePredicate(
               schema,
               reverseLookup,
               forwardLookup,
               response,
               predicate
-            ).value.run(condition.earliestDependency).value
+            )
             (
-              condition.copy(earliestDependency = earliestDependency),
+              condition,
               resolution
             )
           }
@@ -168,11 +170,11 @@ object ResponseValidator {
 
   private def resolvePredicate(
     schema: ApplicationSchema,
-    getPastResponse: EndpointRequest => OptionT[State[EarliestRequestDependency, *], EndpointResponse],
-    getFutureResponse: EndpointRequest => Option[EndpointResponse],
+    getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
+    getFutureResponse: EndpointRequest => Option[EndpointRequestResponse],
     requestResponse: EndpointRequestResponse,
     predicate: S.Predicate
-  ): EitherT[State[EarliestRequestDependency, *], Option[EndpointRequest], Boolean] = {
+  ): Either[Option[EndpointRequest], Boolean] = {
     val convertSymbol     = convertToBaseSymbol(schema, getPastResponse, getFutureResponse, requestResponse, _)
     val basePredicate     = BaseSymbolResolver.convertToBasePredicate(S)(predicate)(convertSymbol)
     val resolvedPredicate = basePredicate.map(BaseSymbolResolver.resolvePredicate)
@@ -181,60 +183,88 @@ object ResponseValidator {
 
   private def resolveSymbol(
     schema: ApplicationSchema,
-    getPastResponse: EndpointRequest => OptionT[State[EarliestRequestDependency, *], EndpointResponse],
-    getFutureResponse: EndpointRequest => Option[EndpointResponse],
+    getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
+    getFutureResponse: EndpointRequest => Option[EndpointRequestResponse],
     requestResponse: EndpointRequestResponse,
     symbol: S.Symbol
-  ): EitherT[State[EarliestRequestDependency, *], Option[EndpointRequest], Json] = {
+  ): Either[Option[EndpointRequest], Json] = {
     val convertSymbol  = convertToBaseSymbol(schema, getPastResponse, getFutureResponse, requestResponse, _)
     val baseSymbol     = BaseSymbolResolver.convertToBaseSymbol(S)(symbol)(convertSymbol)
     val resolvedSymbol = baseSymbol.map(BaseSymbolResolver.resolveSymbol)
     resolvedSymbol
   }
 
+  private def findEarliestDependency(
+    schema: ApplicationSchema,
+    getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
+    requestResponse: EndpointRequestResponse,
+    predicate: S.Predicate
+  ): EndpointRequestId = {
+    val reverseLookups =
+      predicate.toList.collect { case x: S.Endpoint if !x.evaluateAfterExecution => x }
+
+    val reverseLookupResolutions =
+      reverseLookups.map(resolveEndpointReference(schema, getPastResponse, _ => None, requestResponse, _))
+
+    val reverseLookupResponses =
+      reverseLookupResolutions.flatMap(_.toOption)
+
+    (requestResponse.requestId :: reverseLookupResponses.map(_.requestId)).min
+  }
+
   private def convertToBaseSymbol(
     schema: ApplicationSchema,
-    getPastResponse: EndpointRequest => OptionT[State[EarliestRequestDependency, *], EndpointResponse],
-    getFutureResponse: EndpointRequest => Option[EndpointResponse],
+    getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
+    getFutureResponse: EndpointRequest => Option[EndpointRequestResponse],
     requestResponse: EndpointRequestResponse,
     symbol: S.OwnSymbols
-  ): EitherT[State[EarliestRequestDependency, *], Option[EndpointRequest], Json] = {
-    type F[A] = EitherT[State[EarliestRequestDependency, *], Option[EndpointRequest], A]
+  ): Either[Option[EndpointRequest], Json] =
     symbol match {
-      case S.ResponseBody    => requestResponse.response.body.pure[F]
-      case S.StatusCode      => Json.fromInt(requestResponse.response.status).pure[F]
-      case S.Parameter(name) => requestResponse.request.parameterValues(name).pure[F]
-      case S.Endpoint(endpointId, parameters, evaluateAfterExecution) =>
-        val resolvedParametersF =
-          parameters.traverse(
-            resolveSymbol(
-              schema,
-              getPastResponse,
-              getFutureResponse,
-              requestResponse,
-              _
-            )
-          )
-
-        // Do not defer condition if it's dependent on a request that was supposed to have happened in the past:
-        val dependsOn = Some(_: EndpointRequest).filter(_ => evaluateAfterExecution)
-
-        val responseF = (request: EndpointRequest) => {
-          if (evaluateAfterExecution)
-            OptionT.fromOption[State[EarliestRequestDependency, *]](
-              getFutureResponse(request)
-            )
-          else
-            getPastResponse(request)
-        }.toRight(dependsOn(request))
-
-        for {
-          resolvedParameters <- resolvedParametersF
-          request             = EndpointRequest(endpointId, resolvedParameters)
-          response           <- responseF(request)
-        } yield {
-          response.body
-        }
+      case S.ResponseBody    => requestResponse.response.body.asRight
+      case S.StatusCode      => Json.fromInt(requestResponse.response.status).asRight
+      case S.Parameter(name) => requestResponse.request.parameterValues(name).asRight
+      case endpoint: S.Endpoint =>
+        resolveEndpointReference(
+          schema,
+          getPastResponse,
+          getFutureResponse,
+          requestResponse,
+          endpoint
+        ).map(_.response.body)
     }
+
+  private def resolveEndpointReference(
+    schema: ApplicationSchema,
+    getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
+    getFutureResponse: EndpointRequest => Option[EndpointRequestResponse],
+    requestResponse: EndpointRequestResponse,
+    endpoint: S.Endpoint
+  ): Either[Option[EndpointRequest], EndpointRequestResponse] = {
+    val resolvedParametersF =
+      endpoint.parameters.traverse(
+        resolveSymbol(
+          schema,
+          getPastResponse,
+          getFutureResponse,
+          requestResponse,
+          _
+        )
+      )
+
+    // Do not defer condition if it's dependent on a request that was supposed to have happened in the past:
+    val dependsOn = Some(_: EndpointRequest).filter(_ => endpoint.evaluateAfterExecution)
+
+    val responseF = (request: EndpointRequest) => {
+      if (endpoint.evaluateAfterExecution)
+        getFutureResponse(request)
+      else
+        getPastResponse(request)
+    }.toRight(dependsOn(request))
+
+    for {
+      resolvedParameters <- resolvedParametersF
+      request             = EndpointRequest(endpoint.endpointId, resolvedParameters)
+      response           <- responseF(request)
+    } yield response
   }
 }

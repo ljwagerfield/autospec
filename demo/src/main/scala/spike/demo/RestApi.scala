@@ -22,7 +22,6 @@ class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
 
     case DELETE -> Root / "foos" / value  =>
       val valueInt = value.toInt
-      //println(valueInt)
       state = state.filterNot(_ === valueInt)
       NoContent()
 
