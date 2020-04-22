@@ -1,5 +1,5 @@
 package playground
 
-import spike.schema.EndpointId
+import testbot.schema.EndpointId
 
 case class Opportunities(possibleRequests: Set[EndpointId])

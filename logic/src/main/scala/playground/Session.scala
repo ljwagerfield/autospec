@@ -1,5 +1,5 @@
 package playground
 
-import spike.schema.ApplicationSchema
+import testbot.schema.ApplicationSchema
 
 case class Session(id: SessionId, schema: ApplicationSchema)

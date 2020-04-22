@@ -1,5 +1,5 @@
 package playground
 
-import spike.common.ULID
+import testbot.common.ULID
 
 case class SessionId(value: ULID)

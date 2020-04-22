@@ -1,6 +1,6 @@
 package playground
 
-import spike.runtime.EndpointRequest
+import testbot.runtime.EndpointRequest
 
 case class RequestGeneratorResult(
   opportunities: Opportunities,

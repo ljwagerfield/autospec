@@ -1,7 +1,7 @@
 package playground
 
 import monix.eval.Task
-import spike.runtime.{EndpointRequestExecutor, ResponseValidator, ValidatedRequestResponse}
+import testbot.runtime.{EndpointRequestExecutor, ResponseValidator, ValidatedRequestResponse}
 import fs2.Stream
 
 class ValidationStreamFromGenerator(

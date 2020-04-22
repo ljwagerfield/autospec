@@ -3,9 +3,9 @@ package playground
 import cats.data.Chain
 import fs2.Stream
 import monix.eval.Task
-import spike.runtime.resolvers.RuntimeSymbolResolver
-import spike.runtime._
-import spike.schema.ApplicationSchema
+import testbot.runtime.resolvers.RuntimeSymbolResolver
+import testbot.runtime._
+import testbot.schema.ApplicationSchema
 
 class ValidationStreamFromTestPlan(requestExecutor: EndpointRequestExecutor) {
 

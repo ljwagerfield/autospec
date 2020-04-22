@@ -5,9 +5,9 @@ import org.http4s
 import org.http4s._
 import org.http4s.headers.{`Content-Length`, `Content-Type`}
 import org.http4s.implicits._
-import spike.runtime.EndpointRequest
-import spike.schema.HttpMethod._
-import spike.schema._
+import testbot.runtime.EndpointRequest
+import testbot.schema.HttpMethod._
+import testbot.schema._
 
 object HttpRequestEncoder {
   def encode[F[_]](schema: ApplicationSchema, request: EndpointRequest): Request[F] = {

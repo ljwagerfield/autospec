@@ -2,7 +2,7 @@ package playground
 
 import cats.effect.concurrent.Ref
 import monix.eval.Task
-import spike.schema.EndpointId
+import testbot.schema.EndpointId
 
 class RequestResponseRepository {
   private val sessionsRef: Ref[Task, Map[SessionId, List[EndpointRequestResponse]]] = Ref.unsafe[Task, Map[SessionId, List[EndpointRequestResponse]]](Map.empty)
