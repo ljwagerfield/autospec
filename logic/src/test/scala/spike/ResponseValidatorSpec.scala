@@ -2,6 +2,12 @@ package spike
 
 import spike.RuntimeSymbols.Predicate._
 import spike.RuntimeSymbols._
+import spike.{SchemaSymbols => S}
+import spike.SchemaSymbols.{Predicate => SP}
+import spike.runtime.EndpointRequestSymbolic
+import spike.schema.{ApplicationSchema, EndpointDefinition, EndpointId, EndpointParameterName}
+
+import scala.collection.immutable.{Map => SMap}
 
 class ResponseValidatorSpec extends ResponseValidatorSpecBase {
   "ResponseValidator" should {
@@ -146,14 +152,14 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         list() -> checks(
 
         ),
-        add(42) -> checks(
+        add(52) -> checks(
           Equals(StatusCode(2), Literal(200))
         ),
         list() -> checks(
           Equals(
             Concat(
               ResponseBody(1),
-              Literal(42)
+              Literal(52)
             ),
             ResponseBody(3)
           )
@@ -271,6 +277,47 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
           Contains(ResponseBody(2), Literal(42)), // Request #1 is explicitly marked as pure, so shouldn't invalidate this postcondition.
           Equals(Count(ResponseBody(2)), ResponseBody(1)),
           Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2)))
+        )
+      )
+    }
+
+    "support forward lookups appearing BEFORE reverse lookups within the same condition for a mutating endpoint" in {
+      implicit val schema: ApplicationSchema = ApplicationSchema(
+        apiDefinition :: Nil,
+        EndpointDefinition(
+          EndpointId("list"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          Nil
+        ) ::
+          EndpointDefinition(
+            EndpointId("delete"),
+            apiId,
+            method,
+            path,
+            Nil,
+            Nil,
+            List(
+              SP.Equals(
+                S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
+                S.Subtract(
+                  S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = false),
+                  S.Parameter(EndpointParameterName("value"))
+                )
+              )
+            )
+          ) :: Nil
+      )
+      test(
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
+        ),
+        EndpointRequestSymbolic(EndpointId("delete"), SMap(EndpointParameterName("value") -> Literal(42))) -> checks(
+        ),
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
+          Equals(ResponseBody(2), Subtract(ResponseBody(0), Literal(42))),
         )
       )
     }

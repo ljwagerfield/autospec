@@ -4,9 +4,14 @@ import cats.data.NonEmptyList
 import org.scalactic.source
 import spike.RuntimeSymbols._
 import spike.runtime._
-import spike.schema.ApplicationSchema
+import spike.schema.{ApiDefinition, ApiId, ApplicationSchema, HttpMethod}
 
 abstract class ResponseValidatorSpecBase extends BaseSpec {
+  val apiId: ApiId                 = ApiId("api")
+  val apiDefinition: ApiDefinition = ApiDefinition(apiId, "foo")
+  val path: String                 = "/" // Path not important for ResponseValidator, so we can set all to the same.
+  val method: HttpMethod           = HttpMethod.Get // Method not important for ResponseValidator, so we can set all to the same.
+
   def checks(expected: Predicate*)(actual: (TestPathRequestIndex, EndpointRequestSymbolic, Set[Predicate]))(implicit pos: source.Position): Unit = {
     val (requestId, request, actualConditions) = actual
     val expectedConditions = expected.toSet

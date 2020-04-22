@@ -3,6 +3,7 @@ package spike.runtime.resolvers
 import cats.Applicative
 import cats.implicits._
 import io.circe.Json
+import spike.common.JsonExtensions._
 import spike.BaseSymbols
 import spike.BaseSymbols.Predicate._
 import spike.BaseSymbols._
@@ -52,12 +53,58 @@ object BaseSymbolResolver {
           .getOrElse(Json.Null)
       case Count(symbol)                    => Json.fromInt(toVector(resolve(symbol)).size)
       case Distinct(symbol)                 => Json.fromValues(toVector(resolve(symbol)).distinct)
-      case Prepend(item, collection)        => Json.fromValues(resolve(item) +: toVector(resolve(collection)))
-      case Append(collection, item)         => Json.fromValues(toVector(resolve(collection)) :+ resolve(item))
       case Concat(left, right)              => Json.fromValues(toVector(resolve(left)) ++ toVector(resolve(right)))
+
+      case Add(left, right) =>
+        val leftJson  = resolve(left)
+        val rightJson = resolve(right)
+        if (leftJson.isArray)
+          Json.fromValues(toVector(leftJson) :+ rightJson)
+        else if (rightJson.isArray)
+          Json.fromValues(leftJson +: toVector(rightJson))
+        else
+          (leftJson.asNumberNullAsZero, rightJson.asNumberNullAsZero)
+            .mapN(_ + _)
+            .map(Json.fromJsonNumber)
+            .getOrElse(Json.fromString(
+              toStringNoQuotes(leftJson) + toStringNoQuotes(rightJson)
+            ))
+
+      case Subtract(left, right) =>
+        val leftJson  = resolve(left)
+        val rightJson = resolve(right)
+        if (leftJson.isArray)
+          Json.fromValues(toVector(leftJson).filterNot(_ === rightJson))
+        else
+          (leftJson.asNumberNullAsZero, rightJson.asNumberNullAsZero)
+            .mapN(_ - _)
+            .map(Json.fromJsonNumber)
+            .getOrElse(Json.fromString(
+              "NaN"
+            ))
+
+      case Multiply(left, right) =>
+        (resolve(left).asNumberNullAsZero, resolve(right).asNumberNullAsZero)
+          .mapN(_ * _)
+          .map(Json.fromJsonNumber)
+          .getOrElse(Json.fromString(
+            "NaN"
+          ))
+
+      case Divide(left, right) =>
+        (resolve(left).asNumberNullAsZero, resolve(right).asNumberNullAsZero)
+          .mapN(_ / _)
+          .map(Json.fromJsonNumber)
+          .getOrElse(Json.fromString(
+            "NaN"
+          ))
+
       case predicate: Predicate             => Json.fromBoolean(resolvePredicate(lambdaParameterStack, predicate))
     }
   }
+
+  private def toStringNoQuotes(json: Json): String =
+    json.asString.getOrElse(json.toString)
 
   // We use 'Json.Null' instead of 'None: Option[Json]' since optionality may occur _within_ JSON structures too, and
   // we can only use 'Json.Null' there. E.g. 'Map' operations cannot change the size of an array, and since objects in

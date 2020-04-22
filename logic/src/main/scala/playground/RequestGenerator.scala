@@ -220,8 +220,10 @@ class RequestGenerator(
       case S.Find(symbol, predicate)   => convert2(I.Find, symbol, predicate)
       case S.Count(symbol)             => convert(I.Count, symbol)
       case S.Distinct(symbol)          => convert(I.Distinct, symbol)
-      case S.Prepend(item, collection) => convert2(I.Prepend, item, collection)
-      case S.Append(collection, item)  => convert2(I.Append, collection, item)
+      case S.Add(left, right)          => convert2(I.Add, left, right)
+      case S.Subtract(left, right)     => convert2(I.Subtract, left, right)
+      case S.Multiply(left, right)     => convert2(I.Multiply, left, right)
+      case S.Divide(left, right)       => convert2(I.Divide, left, right)
       case S.Concat(left, right)       => convert2(I.Concat, left, right)
       case predicate: S.Predicate      => resolveEndpointsInPredicate(predicate, state, resolvedParams)
     }

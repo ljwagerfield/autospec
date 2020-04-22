@@ -34,8 +34,7 @@ object ListPairApi {
         Nil,
         List(
           Predicate.Equals(
-            // IMPORTANT: do not change the order of this equals! It's required to be this way for the following test:
-            // "treat endpoints that have a postcondition that contains both an resolvable reverse lookup and an unresolvable forward lookup as mutating"
+            // IMPORTANT: Some tests rely on this condition performing BOTH a reverse and forward lookup, so do not change.
             Concat(
               Endpoint(EndpointId("listA"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
               Parameter(EndpointParameterName("value"))

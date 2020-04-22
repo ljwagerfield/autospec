@@ -46,8 +46,10 @@ object ScalaSymbolPrinter extends SymbolPrinter {
       case x: family.Find               => s"${p(x.symbol)}.find(${p(x.predicate)})"
       case x: family.Count              => s"${p(x.symbol)}.count"
       case x: family.Distinct           => s"${p(x.symbol)}.distinct"
-      case x: family.Prepend            => s"${p(x.item)} +: ${p(x.collection)}"
-      case x: family.Append             => s"${p(x.collection)} :+ ${p(x.item)}"
+      case x: family.Add                => s"${p(x.left)} + ${p(x.right)}"
+      case x: family.Subtract           => s"${p(x.left)} - ${p(x.right)}"
+      case x: family.Multiply           => s"${p(x.left)} * ${p(x.right)}"
+      case x: family.Divide             => s"${p(x.left)} / ${p(x.right)}"
       case x: family.Concat             => s"${p(x.leftCollection)} ++ ${p(x.rightCollection)}"
       case x: family.Predicate.Equals   => wrapParenthesis(family)(s"${p(x.left)} == ${p(x.right)}", x.left, x.right)
       case x: family.Predicate.And      => wrapParenthesis(family)(s"${p(x.left)} && ${p(x.right)}", x.left, x.right)

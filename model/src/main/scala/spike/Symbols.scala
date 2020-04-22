@@ -18,10 +18,12 @@ sealed trait CommonSymbols {
   case class FlatMap(symbol: Symbol, path: Symbol) extends Symbol
   case class Find(symbol: Symbol, predicate: Predicate) extends Symbol
   case class Count(symbol: Symbol) extends Symbol
+  case class Add(left: Symbol, right: Symbol) extends Symbol
+  case class Subtract(left: Symbol, right: Symbol) extends Symbol
+  case class Multiply(left: Symbol, right: Symbol) extends Symbol
+  case class Divide(left: Symbol, right: Symbol) extends Symbol
   case class Distinct(symbol: Symbol) extends Symbol
-  case class Prepend(item: Symbol, collection: Symbol) extends Symbol
-  case class Append(collection: Symbol, item: Symbol) extends Symbol
-  case class Concat(leftCollection: Symbol, rightCollection: Symbol) extends Symbol
+  case class Concat(leftCollection: Symbol, rightCollection: Symbol) extends Symbol // To add an element, use 'Add'
 
   sealed trait Predicate extends Symbol
   object Predicate {

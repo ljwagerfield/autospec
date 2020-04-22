@@ -21,8 +21,10 @@ object SymbolConverter {
       case x: a.Find                  => (convertSym(x.symbol), convertPred(x.predicate)).mapN(b.Find(_, _))
       case x: a.Count                 => convertSym(x.symbol).map(b.Count(_))
       case x: a.Distinct              => convertSym(x.symbol).map(b.Distinct(_))
-      case x: a.Prepend               => (convertSym(x.item), convertSym(x.collection)).mapN(b.Prepend(_, _))
-      case x: a.Append                => (convertSym(x.collection), convertSym(x.item)).mapN(b.Append(_, _))
+      case x: a.Add                   => (convertSym(x.left), convertSym(x.right)).mapN(b.Add(_, _))
+      case x: a.Subtract              => (convertSym(x.left), convertSym(x.right)).mapN(b.Subtract(_, _))
+      case x: a.Multiply              => (convertSym(x.left), convertSym(x.right)).mapN(b.Multiply(_, _))
+      case x: a.Divide                => (convertSym(x.left), convertSym(x.right)).mapN(b.Divide(_, _))
       case x: a.Concat                => (convertSym(x.leftCollection), convertSym(x.rightCollection)).mapN(b.Concat(_, _))
       case x: a.Predicate             => convertPred(x).widen[b.Symbol]
       case x: a.OwnSymbols @unchecked => convert(x)
