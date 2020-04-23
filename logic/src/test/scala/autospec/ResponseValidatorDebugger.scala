@@ -53,6 +53,10 @@ object ResponseValidatorDebugger {
     }
   }
 
+  /**
+   * Converts resolved/verified schema predicates into runtime predicates, so the acc. tests can verify which specific
+   * endpoints they were tested against.
+   */
   private def resolve(schema: ApplicationSchema, history: List[ValidatedRequestResponseWithSymbols])(conditionId: ConditionIdWithProvenance): R.Predicate = {
     val (response, requestIndex) = history.zipWithIndex.find(_._1.requestId === conditionId.provenance).get
     val endpoint                 = schema.endpoint(response.request.endpointId)
@@ -98,7 +102,13 @@ object ResponseValidatorDebugger {
             historyWithIndex.take(requestIndex).reverse
 
         val resolvedRequest      = EndpointRequestSymbolic(endpointId, resolvedParameters)
-        val resolvedRequestIndex = scope.find(_._1.requestSymbolic === resolvedRequest).get._2
+        val resolvedRequestIndex = scope
+          .find(_._1.requestSymbolic === resolvedRequest)
+          .getOrElse(throw new Exception(
+            "AutoSpec resolved a condition successfully, but the test framework was unable to determine which request " +
+              "AutoSpec resolved an endpoint reference to (the test framework isn't as good as AutoSpec at doing this!)."
+          ))
+          ._2
 
         R.ResponseBody(resolvedRequestIndex).pure[Id]
     }

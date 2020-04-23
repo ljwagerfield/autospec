@@ -2,10 +2,10 @@ package autospec
 
 import autospec.RuntimeSymbols.Predicate._
 import autospec.RuntimeSymbols._
-import autospec.{SchemaSymbols => S}
 import autospec.SchemaSymbols.{Predicate => SP}
 import autospec.runtime.EndpointRequestSymbolic
-import autospec.schema.{ApplicationSchema, EndpointDefinition, EndpointId, EndpointParameterName}
+import autospec.schema.{EndpointDefinition, EndpointId, EndpointParameterName}
+import autospec.{SchemaSymbols => S}
 
 import scala.collection.immutable.{Map => SMap}
 
@@ -282,8 +282,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     }
 
     "support forward lookups appearing BEFORE reverse lookups within the same condition for a mutating endpoint" in {
-      implicit val schema: ApplicationSchema = ApplicationSchema(
-        apiDefinition :: Nil,
+      testInlineSpec(
         EndpointDefinition(
           EndpointId("list"),
           apiId,
@@ -292,26 +291,25 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
           Nil,
           Nil,
           Nil
-        ) ::
-          EndpointDefinition(
-            EndpointId("delete"),
-            apiId,
-            method,
-            path,
-            Nil,
-            Nil,
-            List(
-              SP.Equals(
-                S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
-                S.Subtract(
-                  S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = false),
-                  S.Parameter(EndpointParameterName("value"))
-                )
+        ),
+        EndpointDefinition(
+          EndpointId("delete"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          List(
+            SP.Equals(
+              S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
+              S.Subtract(
+                S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = false),
+                S.Parameter(EndpointParameterName("value"))
               )
             )
-          ) :: Nil
-      )
-      test(
+          )
+        )
+      )(
         EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
         ),
         EndpointRequestSymbolic(EndpointId("delete"), SMap(EndpointParameterName("value") -> Literal(42))) -> checks(
@@ -319,6 +317,60 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
           Equals(ResponseBody(2), Subtract(ResponseBody(0), Literal(42))),
         )
+      )
+    }
+
+    "support forward lookups appearing BEFORE nested reverse lookups within the same condition for a mutating endpoint" in {
+      testInlineSpec(
+        EndpointDefinition(
+          EndpointId("getByIndex"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          Nil
+        ),
+        EndpointDefinition(
+          EndpointId("count"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          Nil
+        ),
+        EndpointDefinition(
+          EndpointId("append"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          List(
+            SP.Equals(
+              S.Endpoint(EndpointId("getByIndex"), SMap(
+                EndpointParameterName("value") -> S.Subtract(S.Endpoint(EndpointId("count"), SMap.empty, evaluateAfterExecution = true), S.Literal(2))
+              ), evaluateAfterExecution = true),
+              S.Endpoint(EndpointId("getByIndex"), SMap(
+                EndpointParameterName("value") -> S.Subtract(S.Endpoint(EndpointId("count"), SMap.empty, evaluateAfterExecution = false), S.Literal(1))
+              ), evaluateAfterExecution = false)
+            )
+          )
+        )
+      )(
+        EndpointRequestSymbolic(EndpointId("append"), SMap(EndpointParameterName("value") -> Literal(42))) -> checks(
+        ),
+        EndpointRequestSymbolic(EndpointId("count"), SMap.empty) -> checks(
+        ),
+        EndpointRequestSymbolic(EndpointId("getByIndex"), SMap(EndpointParameterName("value") -> Literal(-1))) -> checks(
+        ),
+        EndpointRequestSymbolic(EndpointId("append"), SMap(EndpointParameterName("value") -> Literal(50))) -> checks(
+        ),
+        EndpointRequestSymbolic(EndpointId("count"), SMap.empty) -> checks(
+        ),
+        EndpointRequestSymbolic(EndpointId("getByIndex"), SMap(EndpointParameterName("value") -> Literal(-2))) -> checks(
+        ),
       )
     }
   }

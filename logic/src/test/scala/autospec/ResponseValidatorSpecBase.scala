@@ -4,7 +4,7 @@ import cats.data.NonEmptyList
 import org.scalactic.source
 import autospec.RuntimeSymbols._
 import autospec.runtime._
-import autospec.schema.{ApiDefinition, ApiId, ApplicationSchema, HttpMethod}
+import autospec.schema.{ApiDefinition, ApiId, ApplicationSchema, EndpointDefinition, HttpMethod}
 
 abstract class ResponseValidatorSpecBase extends BaseSpec {
   val apiId: ApiId                 = ApiId("api")
@@ -42,6 +42,12 @@ abstract class ResponseValidatorSpecBase extends BaseSpec {
 
       fail(analysis.toString())
     }
+  }
+
+  def testInlineSpec(endpoints: EndpointDefinition*)(requests: (EndpointRequestSymbolic, ((TestPathRequestIndex, EndpointRequestSymbolic, Set[Predicate])) => Unit)*): Unit = {
+    implicit val a: ApplicationSchema = ApplicationSchema(apiDefinition :: Nil, endpoints.toList)
+
+    test(requests:_*)
   }
 
   def test(requests: (EndpointRequestSymbolic, ((TestPathRequestIndex, EndpointRequestSymbolic, Set[Predicate])) => Unit)*)(implicit schema: ApplicationSchema): Unit = {
