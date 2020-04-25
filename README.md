@@ -1,3 +1,5 @@
+[![](https://github.com/autospec/autospec/workflows/Continuous%20Integration/badge.svg)](https://github.com/autospec/autospec/actions?query=workflow%3A%22Continuous+Integration%22)
+
 # AutoSpec
 
 Test Framework for REST APIs that uses "rules" instead of "tests".
