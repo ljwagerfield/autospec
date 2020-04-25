@@ -16,6 +16,10 @@ val circeVersion       = "0.13.0-RC1"
 
 val compileAndTest     = "compile->compile;test->test"
 
+// Required for 'sbt githubWorkflowGenerate' to correctly infer the Scala version used throughout this project.
+ThisBuild / scalaVersion := scalaVersionString
+ThisBuild / githubWorkflowJavaVersions := Seq(javaVersionString)
+
 lazy val commonSettings = Seq(
   organization         := "io.projectone",
   version              := appVersionString,

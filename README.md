@@ -42,7 +42,6 @@ AutoSpec comes with a simple example to get you started:
     sbt 'demo/runMain autospec.demo.RunGenerator'
     ```
 
-
 ## Technical points of interest
 
 -   Endpoints are either "mutating" or "pure":
