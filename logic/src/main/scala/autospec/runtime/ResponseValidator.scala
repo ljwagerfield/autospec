@@ -17,12 +17,11 @@ import playground.EndpointRequestResponse
 import scala.collection.immutable.{Map => ScalaMap}
 
 object ResponseValidator {
+
   /**
-   * Streaming alternative of the online algorithm below.
-   */
-  def stream[A](
-    schema: ApplicationSchema,
-    responseStream: Stream[Task, A])(
+    * Streaming alternative of the online algorithm below.
+    */
+  def stream[A](schema: ApplicationSchema, responseStream: Stream[Task, A])(
     f: A => EndpointRequestResponse
   ): Stream[Task, (A, ValidatedRequestResponse)] =
     responseStream
@@ -33,8 +32,8 @@ object ResponseValidator {
       .map(_._2)
 
   /**
-   * Online algorithm for validating server responses.
-   */
+    * Online algorithm for validating server responses.
+    */
   def validate(
     schema: ApplicationSchema,
     state: ResponseValidationState,
@@ -56,13 +55,13 @@ object ResponseValidator {
         .filter(r => upTo.forall(_.value <= r.requestId.value))
     }
 
-    val endpoint      = schema.endpoint(requestResponse.request.endpointId)
+    val endpoint = schema.endpoint(requestResponse.request.endpointId)
     val ownConditions = endpoint.conditions.map {
       case (conditionId, predicate) =>
         val requestId             = requestResponse.requestId
         val lastMutatingRequestId = state.lastMutatingRequestId
         val reverseLookup         = getResponseBefore(requestId, lastMutatingRequestId, _)
-        val earliestDependency    = findEarliestDependency(
+        val earliestDependency = findEarliestDependency(
           schema,
           reverseLookup,
           getResponse(_).response,
@@ -81,7 +80,7 @@ object ResponseValidator {
     }
     val request            = requestResponse.request
     val deferredConditions = state.deferredConditions.getOrElse(request, Set.empty).toList
-    val allConditions      = ownConditions ++ deferredConditions.map(x => x -> schema.endpoint(x.conditionId.endpointId).conditions(x.conditionId)).toMap
+    val allConditions      = ownConditions ++ deferredConditions.map(x => x -> schema.condition(x.conditionId)).toMap
     val noForwardLookup    = (_: EndpointRequest) => None: Option[EndpointRequestResponse]
 
     val nextMutatingRequestId =
@@ -93,35 +92,36 @@ object ResponseValidator {
         state.lastMutatingRequestId
 
     val conditions =
-      allConditions
-        .groupBy { case (conditionId, _) => conditionId.provenance }
+      allConditions.groupBy { case (conditionId, _) => conditionId.provenance }
         .toList
-        .flatMap { case (requestId, conditions) =>
-          val response = getResponse(requestId)
-          conditions.toList.map { case (condition, predicate) =>
-            val isPrecondition = condition.isPrecondition
-            val reverseLookup  = getResponseBefore(requestId, condition.lastMutatingRequestId, _)
-            val forwardLookup  = if (isPrecondition) noForwardLookup else getResponseAfter(requestId, _)
-            val resolution     = resolvePredicate(
-              schema,
-              reverseLookup,
-              forwardLookup,
-              getResponse(_).response,
-              response,
-              predicate
-            )
-            (
-              condition,
-              resolution
-            )
-          }
+        .flatMap {
+          case (requestId, conditions) =>
+            val response = getResponse(requestId)
+            conditions.toList.map {
+              case (condition, predicate) =>
+                val isPrecondition = condition.isPrecondition
+                val reverseLookup  = getResponseBefore(requestId, condition.lastMutatingRequestId, _)
+                val forwardLookup  = if (isPrecondition) noForwardLookup else getResponseAfter(requestId, _)
+                val resolution = resolvePredicate(
+                  schema,
+                  reverseLookup,
+                  forwardLookup,
+                  getResponse(_).response,
+                  response,
+                  predicate
+                )
+                (
+                  condition,
+                  resolution
+                )
+            }
         }
 
     val (deferred, processedOpts) =
       conditions.map {
-        case (condition, Right(true  -> predicate))  => condition -> Right(Some(Passed -> predicate))
-        case (condition, Right(false -> predicate))  => condition -> Right(Some(Failed -> predicate))
-        case (condition, Left(request))              => condition -> request.filterNot(_ => condition.isPrecondition).toLeft(None)
+        case (condition, Right(true -> predicate))  => condition -> Right(Some(Passed -> predicate))
+        case (condition, Right(false -> predicate)) => condition -> Right(Some(Failed -> predicate))
+        case (condition, Left(request))             => condition -> request.filterNot(_ => condition.isPrecondition).toLeft(None)
       }.toMap.partitionEither(identity)
 
     // Drop unresolvable conditions (i.e. preconditions that depend on unresolved requests, and thus will never appear).
@@ -142,7 +142,7 @@ object ResponseValidator {
       oldDeferredMinusSelf.merge(deferred.swap)
 
     val newHistory =
-      if (endpoint.isMutating) {
+      if (endpoint.isMutating)
         // Truncate history (prevent it from growing indefinitely).
         // Histories are likely to stay very short, containing usually fewer than 100 requests: they are truncated on
         // each mutating request, leaving behind only the current request, and any requests depended on by deferred
@@ -154,7 +154,6 @@ object ResponseValidator {
         }
         else
           Chain.one(requestResponse)
-      }
       else
         history
 
@@ -181,7 +180,8 @@ object ResponseValidator {
     requestResponse: EndpointRequestResponse,
     predicate: S.Predicate
   ): Either[Option[EndpointRequest], (Boolean, RE.Predicate)] = {
-    val convertOwnSymbols = convertToRuntimeSymbol(schema, getPastResponse, getFutureResponse, getResponse, requestResponse, _)
+    val convertOwnSymbols =
+      convertToRuntimeSymbol(schema, getPastResponse, getFutureResponse, getResponse, requestResponse, _)
     SymbolConverter
       .convertPredicate[Either[Option[EndpointRequest], *], S.type, RE.type](S, RE)(predicate)(convertOwnSymbols)
       .map { runtimePredicate =>
@@ -197,7 +197,8 @@ object ResponseValidator {
     requestResponse: EndpointRequestResponse,
     symbol: S.Symbol
   ): Either[Option[EndpointRequest], Json] = {
-    val convertOwnSymbols = convertToRuntimeSymbol(schema, getPastResponse, getFutureResponse, getResponse, requestResponse, _)
+    val convertOwnSymbols =
+      convertToRuntimeSymbol(schema, getPastResponse, getFutureResponse, getResponse, requestResponse, _)
     SymbolConverter
       .convertSymbol[Either[Option[EndpointRequest], *], S.type, RE.type](S, RE)(symbol)(convertOwnSymbols)
       .map(RuntimeSymbolResolver.resolveSymbol(_, getResponse))
@@ -235,26 +236,29 @@ object ResponseValidator {
     endpoint: S.Endpoint
   ): Either[Option[EndpointRequest], EndpointRequestResponse] = {
     val resolvedParametersF =
-      endpoint.parameters.traverse(
-        resolveSymbol(
-          schema,
-          getPastResponse,
-          getFutureResponse,
-          getResponse,
-          requestResponse,
-          _
+      endpoint
+        .parameters
+        .traverse(
+          resolveSymbol(
+            schema,
+            getPastResponse,
+            getFutureResponse,
+            getResponse,
+            requestResponse,
+            _
+          )
         )
-      )
 
     // Do not defer condition if it's dependent on a request that was supposed to have happened in the past:
     val dependsOn = Some(_: EndpointRequest).filter(_ => endpoint.evaluateAfterExecution)
 
-    val responseF = (request: EndpointRequest) => {
-      if (endpoint.evaluateAfterExecution)
-        getFutureResponse(request)
-      else
-        getPastResponse(request)
-    }.toRight(dependsOn(request))
+    val responseF = (request: EndpointRequest) =>
+      {
+        if (endpoint.evaluateAfterExecution)
+          getFutureResponse(request)
+        else
+          getPastResponse(request)
+      }.toRight(dependsOn(request))
 
     for {
       resolvedParameters <- resolvedParametersF

@@ -3,7 +3,7 @@ package autospec.schema
 import autospec.SchemaSymbols.Predicate
 
 case class ApplicationSchema(apis: List[ApiDefinition], endpoints: List[EndpointDefinition]) {
-  val apiMap: Map[ApiId, ApiDefinition] = apis.map(x => x.id -> x).toMap
+  val apiMap: Map[ApiId, ApiDefinition]                = apis.map(x => x.id      -> x).toMap
   val endpointMap: Map[EndpointId, EndpointDefinition] = endpoints.map(x => x.id -> x).toMap
 
   def api(apiId: ApiId): ApiDefinition =

@@ -10,10 +10,11 @@ import autospec.schema.HttpMethod._
 import autospec.schema._
 
 object HttpRequestEncoder {
+
   def encode[F[_]](schema: ApplicationSchema, request: EndpointRequest): Request[F] = {
-    val endpoint   = schema.endpoint(request.endpointId)
-    val api        = schema.api(endpoint.apiId)
-    val method     = endpoint.method match {
+    val endpoint = schema.endpoint(request.endpointId)
+    val api      = schema.api(endpoint.apiId)
+    val method = endpoint.method match {
       case Get    => Method.GET
       case Put    => Method.PUT
       case Post   => Method.POST
@@ -32,8 +33,9 @@ object HttpRequestEncoder {
       .get(_: EndpointParameterLocation)
       .toList
       .flatten
-      .map { case (parameter, json) =>
-        parameter.name.value -> serializeParameter(endpoint.id, parameter, json)
+      .map {
+        case (parameter, json) =>
+          parameter.name.value -> serializeParameter(endpoint.id, parameter, json)
       }
       .toMap
 
@@ -41,19 +43,20 @@ object HttpRequestEncoder {
       params
         .get(EndpointParameterLocation.Body)
         .map(_.head)
-        .map { case (parameter, json) =>
-          val payload       = serializeParameter(endpoint.id, parameter, json)
-          val contentType   = parameterContentType(parameter)
-          val bytes         = payload.getBytes(contentType.charset.getOrElse(http4s.DefaultCharset).nioCharset)
-          val contentLength = `Content-Length`.unsafeFromLong(bytes.length.toLong)
-          val stream        = fs2.Stream.emits(bytes)
-          stream -> List(contentType, contentLength)
+        .map {
+          case (parameter, json) =>
+            val payload       = serializeParameter(endpoint.id, parameter, json)
+            val contentType   = parameterContentType(parameter)
+            val bytes         = payload.getBytes(contentType.charset.getOrElse(http4s.DefaultCharset).nioCharset)
+            val contentLength = `Content-Length`.unsafeFromLong(bytes.length.toLong)
+            val stream        = fs2.Stream.emits(bytes)
+            stream -> List(contentType, contentLength)
         }
         .getOrElse(fs2.Stream.empty -> Nil)
 
     val headers     = serializedParams(EndpointParameterLocation.Header).toList.map(x => Header(x._1, x._2))
     val querystring = serializedParams(EndpointParameterLocation.Querystring)
-    val path        = serializedParams(EndpointParameterLocation.Path).foldLeft(endpoint.relativeUrl) { (path, param) =>
+    val path = serializedParams(EndpointParameterLocation.Path).foldLeft(endpoint.relativeUrl) { (path, param) =>
       val (name, value) = param
       path.replaceAllLiterally(s":$name", value)
     }
@@ -77,8 +80,14 @@ object HttpRequestEncoder {
           _.toString,
           _.toString,
           identity,
-          _ => throw new Exception(s"Arrays are not supported for parameter '${parameter.name.value}' for endpoint '${endpointId.value}' because the parameter is serialized using 'toString'."),
-          _ => throw new Exception(s"Complex objects are not supported for parameter '${parameter.name.value}' for endpoint '${endpointId.value}' because the parameter is serialized using 'toString'.")
+          _ =>
+            throw new Exception(
+              s"Arrays are not supported for parameter '${parameter.name.value}' for endpoint '${endpointId.value}' because the parameter is serialized using 'toString'."
+            ),
+          _ =>
+            throw new Exception(
+              s"Complex objects are not supported for parameter '${parameter.name.value}' for endpoint '${endpointId.value}' because the parameter is serialized using 'toString'."
+            )
         )
       case EndpointParameterSerialization.Json => value.noSpaces
     }
@@ -91,4 +100,3 @@ object HttpRequestEncoder {
         `Content-Type`(mediaType"application/json", http4s.DefaultCharset)
     }
 }
-

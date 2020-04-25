@@ -10,12 +10,11 @@ trait EndpointRequestExecutor {
 }
 
 class EndpointRequestExecutorImpl(httpRequestExecutor: HttpRequestExecutor) extends EndpointRequestExecutor {
+
   def execute(schema: ApplicationSchema, request: EndpointRequest): Task[EndpointRequestResponse] =
     for {
-      id             <- ULID.next[Task].map(EndpointRequestId.apply)
-      encodedRequest  = HttpRequestEncoder.encode[Task](schema, request)
-      response       <- httpRequestExecutor.execute(encodedRequest)
-    } yield {
-      EndpointRequestResponse(id, request, response)
-    }
+      id            <- ULID.next[Task].map(EndpointRequestId.apply)
+      encodedRequest = HttpRequestEncoder.encode[Task](schema, request)
+      response      <- httpRequestExecutor.execute(encodedRequest)
+    } yield EndpointRequestResponse(id, request, response)
 }

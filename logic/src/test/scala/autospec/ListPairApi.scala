@@ -16,7 +16,9 @@ trait ListPairApi[A] {
 }
 
 object ListPairApi {
+
   object Schema extends ListPairApi[EndpointDefinition] {
+
     def addA(value: Int) =
       EndpointDefinition(
         currentMethodEndpointId,
@@ -42,7 +44,8 @@ object ListPairApi {
             Endpoint(EndpointId("listA"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true)
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -70,7 +73,8 @@ object ListPairApi {
             )
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -90,9 +94,6 @@ object ListPairApi {
           )
         )
       )
-
-
-
 
     def addB(value: Int) =
       EndpointDefinition(
@@ -120,7 +121,8 @@ object ListPairApi {
             Endpoint(EndpointId("listB"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true)
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -148,7 +150,8 @@ object ListPairApi {
             )
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -169,11 +172,12 @@ object ListPairApi {
         )
       )
   }
+
   object Client extends ListPairApi[EndpointRequestSymbolic] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-    def addA(value: Int)    = ClientMacros.endpointRequest()
-    def removeA(value: Int) = ClientMacros.endpointRequest()
-    def listA()             = ClientMacros.endpointRequest()
+    def addA(value: Int)                   = ClientMacros.endpointRequest()
+    def removeA(value: Int)                = ClientMacros.endpointRequest()
+    def listA()                            = ClientMacros.endpointRequest()
 
     def addB(value: Int)    = ClientMacros.endpointRequest()
     def removeB(value: Int) = ClientMacros.endpointRequest()

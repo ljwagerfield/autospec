@@ -11,7 +11,9 @@ trait MapApi[A] {
 }
 
 object MapApi {
+
   object Schema extends MapApi[EndpointDefinition] {
+
     def set(key: String, value: Int) =
       EndpointDefinition(
         currentMethodEndpointId,
@@ -42,7 +44,8 @@ object MapApi {
             Parameter(EndpointParameterName("value"))
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -63,9 +66,10 @@ object MapApi {
         )
       )
   }
+
   object Client extends MapApi[EndpointRequestSymbolic] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-    def set(key: String, value: Int) = ClientMacros.endpointRequest()
-    def list()                       = ClientMacros.endpointRequest()
+    def set(key: String, value: Int)       = ClientMacros.endpointRequest()
+    def list()                             = ClientMacros.endpointRequest()
   }
 }

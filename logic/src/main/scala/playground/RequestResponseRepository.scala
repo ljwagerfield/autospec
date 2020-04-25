@@ -5,7 +5,8 @@ import monix.eval.Task
 import autospec.schema.EndpointId
 
 class RequestResponseRepository {
-  private val sessionsRef: Ref[Task, Map[SessionId, List[EndpointRequestResponse]]] = Ref.unsafe[Task, Map[SessionId, List[EndpointRequestResponse]]](Map.empty)
+  private val sessionsRef: Ref[Task, Map[SessionId, List[EndpointRequestResponse]]] =
+    Ref.unsafe[Task, Map[SessionId, List[EndpointRequestResponse]]](Map.empty)
 
   def saveRequestResponse(sessionId: SessionId, response: EndpointRequestResponse): Task[Unit] =
     sessionsRef.update { sessions =>

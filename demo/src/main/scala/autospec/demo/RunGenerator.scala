@@ -8,6 +8,7 @@ import autospec.demo.RestApiSchema._
 import autospec.runtime.applications.GeneratorConsoleApp
 
 object RunGenerator extends IOApp {
+
   def run(args: List[String]): IO[ExitCode] = {
     implicit val scheduler: Scheduler = Scheduler.traced
 

@@ -20,16 +20,17 @@ class RequestGenerator(
   opportunitiesRepository: OpportunitiesRepository,
   config: Config
 ) {
+
   private case class ApplicationState(
     previousResponses: Map[EndpointId, List[EndpointRequestResponse]],
     previousOpportunities: List[Opportunities]
   )
 
   /**
-   * The maximum factor to use for biasing the selection of an infrequently-seen endpoint vs a frequently-seen endpoint.
-   * For example, a factor of 10 says "if we've seen endpoint A once, and endpoint B every time, then give endpoint
-   * A 10x the chance of being called than endpoint B".
-   */
+    * The maximum factor to use for biasing the selection of an infrequently-seen endpoint vs a frequently-seen endpoint.
+    * For example, a factor of 10 says "if we've seen endpoint A once, and endpoint B every time, then give endpoint
+    * A 10x the chance of being called than endpoint B".
+    */
   private val maxBiasFactor = 10
 
   private val maxHistory = config.maxHistorySizeForRequestGenerator
@@ -38,15 +39,13 @@ class RequestGenerator(
     for {
       previousResponses     <- responseRepository.getPreviousResponses(session.id, maxHistory)
       previousOpportunities <- opportunitiesRepository.getPreviousOpportunities(session.id, maxHistory)
-    } yield {
-      nextRequest(
-        session.schema,
-        ApplicationState(
-          previousResponses,
-          previousOpportunities
-        )
+    } yield nextRequest(
+      session.schema,
+      ApplicationState(
+        previousResponses,
+        previousOpportunities
       )
-    }
+    )
 
   private def nextRequest(schema: ApplicationSchema, state: ApplicationState): Option[RequestGeneratorResult] = {
     val callableEndpoints = getCallableEndpoints(schema, state)
@@ -76,51 +75,50 @@ class RequestGenerator(
 
   private def getRequestCandidates(endpoint: EndpointDefinition, state: ApplicationState): List[EndpointRequest] = {
     val paramsIfEndpointDependenciesMet =
-      endpoint.preconditions.foldLeftM((List.empty[I.Predicate], Map.empty[EndpointParameterName, Json])) { (accum, precondition) =>
-        val (resolvedPredicates, resolvedParams) = accum
-        resolveEndpointsInPredicate(precondition.predicate, state, resolvedParams).map {
-          case (resolvedPredicate, updatedResolvedParams) => (
-            resolvedPredicate :: resolvedPredicates,
-            updatedResolvedParams
+      endpoint.preconditions.foldLeftM((List.empty[I.Predicate], Map.empty[EndpointParameterName, Json])) {
+        (accum, precondition) =>
+          val (resolvedPredicates, resolvedParams) = accum
+          resolveEndpointsInPredicate(precondition.predicate, state, resolvedParams).map {
+            case (resolvedPredicate, updatedResolvedParams) =>
+              (
+                resolvedPredicate :: resolvedPredicates,
+                updatedResolvedParams
+              )
+          }
+      }
+
+    paramsIfEndpointDependenciesMet.flatMap {
+      case (partiallyResolvedPredicates, resolvedParams) =>
+        val resolvedParamNames = resolvedParams.keySet
+        val unresolvedParams   = endpoint.parameters.filterNot(x => resolvedParamNames.contains(x.name))
+
+        val paramsFromEndpoints = resolvedParams.toList.map(_ :: Nil)
+        val paramsFromRandom = unresolvedParams
+          .map { parameter =>
+            getParameterDomain(endpoint.id, parameter.`type`).map(parameterValue => parameter.name -> parameterValue)
+          }
+
+        val paramCombinations =
+          cartesianProduct(
+            paramsFromEndpoints ::: paramsFromRandom
+          )
+
+        val paramCombinationsOrNoParams =
+          NonEmptyList
+            .fromList(paramCombinations)
+            .getOrElse(NonEmptyList.one(Nil))
+
+        val paramCombinationsThatSatisfyPredicates =
+          paramCombinationsOrNoParams.filter { params =>
+            partiallyResolvedPredicates.forall(predicate => resolvePredicate(predicate, params.toMap))
+          }
+
+        paramCombinationsThatSatisfyPredicates.map { params =>
+          EndpointRequest(
+            endpoint.id,
+            params.toMap
           )
         }
-      }
-
-    paramsIfEndpointDependenciesMet.flatMap { case (partiallyResolvedPredicates, resolvedParams) =>
-      val resolvedParamNames  = resolvedParams.keySet
-      val unresolvedParams    = endpoint.parameters.filterNot(x => resolvedParamNames.contains(x.name))
-
-      val paramsFromEndpoints = resolvedParams.toList.map(_ :: Nil)
-      val paramsFromRandom    = unresolvedParams
-        .map { parameter =>
-          getParameterDomain(endpoint.id, parameter.`type`).map { parameterValue =>
-            parameter.name -> parameterValue
-          }
-        }
-
-      val paramCombinations =
-        cartesianProduct(
-          paramsFromEndpoints ::: paramsFromRandom
-        )
-
-      val paramCombinationsOrNoParams =
-        NonEmptyList
-          .fromList(paramCombinations)
-          .getOrElse(NonEmptyList.one(Nil))
-
-      val paramCombinationsThatSatisfyPredicates =
-        paramCombinationsOrNoParams.filter { params =>
-          partiallyResolvedPredicates.forall { predicate =>
-            resolvePredicate(predicate, params.toMap)
-          }
-        }
-
-      paramCombinationsThatSatisfyPredicates.map { params =>
-        EndpointRequest(
-          endpoint.id,
-          params.toMap
-        )
-      }
     }
   }
 
@@ -148,18 +146,22 @@ class RequestGenerator(
     // requires(getPreset(x).docId == y)
     val saltString = endpointId.value
     parameterType match {
-      case Boolean        => List(true, false).map(Json.fromBoolean)
-      case String         => List("", saltString, s"$saltString-a", s"$saltString-b", s"$saltString-c").map(Json.fromString)
-      case Int16          => List(-3, -2, -1, 0, 1, 2, 3, Int16.minVal, Int16.maxVal).map(Json.fromInt)
-      case Int32          => List(-3, -2, -1, 0, 1, 2, 3, Int.MinValue, Int.MaxValue).map(Json.fromInt)
-      case Int64          => List(-3, -2, -1, 0, 1, 2, 3, Long.MinValue, Long.MaxValue).map(Json.fromLong)
-      case Single         => List(-3, -2, -1, -0.1F, 0, 0.1F, 1, 2, 3, Float.MinValue, Float.MaxValue).map(x => Json.fromFloat(x).get)
-      case Double         => List(-3, -2, -1, -0.1D, 0, 0.1D, 1, 2, 3, scala.Double.MinValue, scala.Double.MaxValue).map(x => Json.fromDouble(x).get)
+      case Boolean => List(true, false).map(Json.fromBoolean)
+      case String  => List("", saltString, s"$saltString-a", s"$saltString-b", s"$saltString-c").map(Json.fromString)
+      case Int16   => List(-3, -2, -1, 0, 1, 2, 3, Int16.minVal, Int16.maxVal).map(Json.fromInt)
+      case Int32   => List(-3, -2, -1, 0, 1, 2, 3, Int.MinValue, Int.MaxValue).map(Json.fromInt)
+      case Int64   => List(-3, -2, -1, 0, 1, 2, 3, Long.MinValue, Long.MaxValue).map(Json.fromLong)
+      case Single =>
+        List(-3, -2, -1, -0.1F, 0, 0.1F, 1, 2, 3, Float.MinValue, Float.MaxValue).map(x => Json.fromFloat(x).get)
+      case Double =>
+        List(-3, -2, -1, -0.1D, 0, 0.1D, 1, 2, 3, scala.Double.MinValue, scala.Double.MaxValue).map(x =>
+          Json.fromDouble(x).get
+        )
       case Object(fields) =>
         cartesianProduct(
           fields.view.mapValues(x => getParameterDomain(endpointId, x)).toMap
         )
-        .map(Json.fromFields)
+          .map(Json.fromFields)
       case Array(elementTypes) =>
         val values =
           NonEmptyList
@@ -208,11 +210,13 @@ class RequestGenerator(
     val symbolConverter = new SymbolConverter(state, resolvedParams)
     import symbolConverter._
     symbol match {
-      case S.ResponseBody | S.StatusCode => throw new Exception(s"Preconditions cannot contain ${symbol.getClass.getSimpleName} symbols.")
-      case endpoint: S.Endpoint          => resolveEndpointSymbol(endpoint, state, resolvedParams)
+      case S.ResponseBody | S.StatusCode =>
+        throw new Exception(s"Preconditions cannot contain ${symbol.getClass.getSimpleName} symbols.")
 
-      case S.Parameter(name)           => List(I.Parameter(name) -> resolvedParams)
-      case S.Literal(value)            => List(I.Literal(value) -> resolvedParams)
+      case endpoint: S.Endpoint => resolveEndpointSymbol(endpoint, state, resolvedParams)
+
+      case S.Parameter(name)           => List(I.Parameter(name)           -> resolvedParams)
+      case S.Literal(value)            => List(I.Literal(value)            -> resolvedParams)
       case S.LambdaParameter(distance) => List(I.LambdaParameter(distance) -> resolvedParams)
       case S.Map(symbol, path)         => convert2(I.Map, symbol, path)
       case S.FlatMap(symbol, path)     => convert2(I.FlatMap, symbol, path)
@@ -234,18 +238,21 @@ class RequestGenerator(
     state: ApplicationState,
     resolvedParams: Map[EndpointParameterName, Json]
   ): List[(I.Literal, Map[EndpointParameterName, Json])] = {
-    val previousRequests  = state.previousResponses.getOrElse(endpoint.endpointId, Nil)
+    val previousRequests = state.previousResponses.getOrElse(endpoint.endpointId, Nil)
     val paramCombinations =
-      endpoint.parameters.toList.foldLeftM(Map.empty[EndpointParameterName, Either[EndpointParameterName, Json]] -> resolvedParams) { (accum, parameter) =>
+      endpoint.parameters.toList.foldLeftM(
+        Map.empty[EndpointParameterName, Either[EndpointParameterName, Json]] -> resolvedParams
+      ) { (accum, parameter) =>
         val (endpointParams, resolvedParams) = accum
         val (paramName, paramValue)          = parameter
         paramValue match {
           case x: S.Endpoint =>
-            resolveEndpointSymbol(x, state, resolvedParams).map { case (endpointResponse, resolvedParams) =>
-              (
-                endpointParams ++ Map(paramName -> endpointResponse.value.asRight),
-                resolvedParams
-              )
+            resolveEndpointSymbol(x, state, resolvedParams).map {
+              case (endpointResponse, resolvedParams) =>
+                (
+                  endpointParams ++ Map(paramName -> endpointResponse.value.asRight),
+                  resolvedParams
+                )
             }
           case x: S.Parameter =>
             List(
@@ -254,7 +261,7 @@ class RequestGenerator(
                 resolvedParams
               )
             )
-          case x: S.Literal  =>
+          case x: S.Literal =>
             List(
               (
                 endpointParams ++ Map(paramName -> x.value.asRight),
@@ -262,21 +269,29 @@ class RequestGenerator(
               )
             )
           // TODO: we must support 'Map' next, so we can do things like 'requires(getPreset(getNeg(x).presetId))' -- see 'presetId' -- this is a simple Map operation.
-          case x => throw new UnsupportedOperationException(s"Endpoint references inside preconditions must currently use either literals or other endpoint references as parameters. The use of ${x.getClass.getSimpleName} is currently unsupported.")
+          case x =>
+            throw new UnsupportedOperationException(
+              s"Endpoint references inside preconditions must currently use either literals or other endpoint references as parameters. The use of ${x.getClass.getSimpleName} is currently unsupported."
+            )
         }
       }
 
-    paramCombinations.flatMap { case (endpointParams, resolvedParams) =>
-      matchRequestsByParams(previousRequests, endpointParams).map { case (endpointResponse, resolvedChildParams) =>
-        (
-          endpointResponse,
-          resolvedParams ++ resolvedChildParams
-        )
-      }
+    paramCombinations.flatMap {
+      case (endpointParams, resolvedParams) =>
+        matchRequestsByParams(previousRequests, endpointParams).map {
+          case (endpointResponse, resolvedChildParams) =>
+            (
+              endpointResponse,
+              resolvedParams ++ resolvedChildParams
+            )
+        }
     }
   }
 
-  private def matchRequestsByParams(requests: List[EndpointRequestResponse], params: Map[EndpointParameterName, Either[EndpointParameterName, Json]]): List[(I.Literal, Map[EndpointParameterName, Json])] = {
+  private def matchRequestsByParams(
+    requests: List[EndpointRequestResponse],
+    params: Map[EndpointParameterName, Either[EndpointParameterName, Json]]
+  ): List[(I.Literal, Map[EndpointParameterName, Json])] = {
     val (variableParams, literalParams) = params.partitionEither(identity)
     val endpointParamsByVariable        = variableParams.swap.toList
     matchRequestsByLiterals(requests, literalParams).flatMap(
@@ -284,14 +299,21 @@ class RequestGenerator(
     )
   }
 
-  private def matchRequestsByLiterals(requests: List[EndpointRequestResponse], partialParams: Map[EndpointParameterName, Json]): List[EndpointRequestResponse] =
+  private def matchRequestsByLiterals(
+    requests: List[EndpointRequestResponse],
+    partialParams: Map[EndpointParameterName, Json]
+  ): List[EndpointRequestResponse] =
     requests.filter { request =>
-      partialParams.forall { case (paramName, paramValue) =>
-        request.request.parameterValues(paramName) === paramValue
+      partialParams.forall {
+        case (paramName, paramValue) =>
+          request.request.parameterValues(paramName) === paramValue
       }
     }
 
-  private def matchRequestIfVariablesFit(request: EndpointRequestResponse, endpointParamsByVariable: List[(EndpointParameterName, Set[EndpointParameterName])]): Option[(I.Literal, Map[EndpointParameterName, Json])] = {
+  private def matchRequestIfVariablesFit(
+    request: EndpointRequestResponse,
+    endpointParamsByVariable: List[(EndpointParameterName, Set[EndpointParameterName])]
+  ): Option[(I.Literal, Map[EndpointParameterName, Json])] = {
     val resolvedVariableParamsOpt =
       endpointParamsByVariable.foldLeftM[Option, Map[EndpointParameterName, Json]](Map.empty) { (accum, params) =>
         val (variableParam, endpointParams) = params
@@ -318,7 +340,10 @@ class RequestGenerator(
   }
 
   private def endpointWeight(state: ApplicationState, endpoint: EndpointId): Int = {
-    val count      = state.previousOpportunities.take(maxBiasFactor).count(_.possibleRequests.contains(endpoint)) // TODO: use 'contains_' instead.
+    val count =
+      state.previousOpportunities.take(maxBiasFactor).count(
+        _.possibleRequests.contains(endpoint)
+      ) // TODO: use 'contains_' instead.
     val maxPenalty = maxBiasFactor + 1
 
     // Random (no biasing of less-frequently available endpoints)
@@ -343,20 +368,21 @@ class RequestGenerator(
     implicit val convertSymbol: Convert[S.Symbol, I.Symbol]          = resolveEndpointsInSymbol(_, state, _)
     implicit val convertPredicate: Convert[S.Predicate, I.Predicate] = resolveEndpointsInPredicate(_, state, _)
 
-    def convert[A, A2, R](newType: A2 => R, a: A)
-                         (implicit atoa: Convert[A, A2]): List[(R, Map[EndpointParameterName, Json])] =
-      atoa(a, resolvedParams).map { case (a2, resolvedParams2) =>
-        newType(a2) -> resolvedParams2
+    def convert[A, A2, R](newType: A2 => R, a: A)(implicit
+      atoa: Convert[A, A2]
+    ): List[(R, Map[EndpointParameterName, Json])] =
+      atoa(a, resolvedParams).map {
+        case (a2, resolvedParams2) =>
+          newType(a2) -> resolvedParams2
       }
 
-    def convert2[A, B, A2, B2, R](newType: (A2, B2) => R, a: A, b: B)
-                                 (implicit atoa: Convert[A, A2], btob: Convert[B, B2])
-                                 : List[(R, Map[EndpointParameterName, Json])] =
+    def convert2[A, B, A2, B2, R](newType: (A2, B2) => R, a: A, b: B)(implicit
+      atoa: Convert[A, A2],
+      btob: Convert[B, B2]
+    ): List[(R, Map[EndpointParameterName, Json])] =
       for {
         (a2, resolvedParams2) <- atoa(a, resolvedParams)
         (b2, resolvedParams3) <- btob(b, resolvedParams2)
-      } yield {
-        newType(a2, b2) -> resolvedParams3
-      }
+      } yield newType(a2, b2) -> resolvedParams3
   }
 }

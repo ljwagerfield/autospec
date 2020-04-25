@@ -6,7 +6,14 @@ import org.http4s.client.asynchttpclient.AsyncHttpClient
 import playground._
 import autospec.common.ULID
 import autospec.runtime.ConditionStatus.{Failed, Passed}
-import autospec.runtime.{EndpointRequestExecutorImpl, EndpointRequestId, HttpRequestExecutor, ScalaSymbolPrinter, SymbolPrinter, ValidatedRequestResponse}
+import autospec.runtime.{
+  EndpointRequestExecutorImpl,
+  EndpointRequestId,
+  HttpRequestExecutor,
+  ScalaSymbolPrinter,
+  SymbolPrinter,
+  ValidatedRequestResponse
+}
 import autospec.schema.ApplicationSchema
 import cats.implicits._
 import autospec.runtime.applications.GeneratorConsoleApp.State
@@ -16,25 +23,29 @@ import scala.collection.immutable.Queue
 class GeneratorConsoleApp(implicit scheduler: Scheduler) {
   private val printer: SymbolPrinter = ScalaSymbolPrinter
 
-  def run(schema: ApplicationSchema): Task[Unit] = {
+  def run(schema: ApplicationSchema): Task[Unit] =
     AsyncHttpClient.resource[Task]().use { httpClient =>
-      val config = Config(1000)
+      val config                    = Config(1000)
       val httpRequestExecutor       = new HttpRequestExecutor(httpClient)
       val endpointRequestExecutor   = new EndpointRequestExecutorImpl(httpRequestExecutor)
       val requestResponseRepository = new RequestResponseRepository()
       val opportunitiesRepository   = new OpportunitiesRepository()
       val requestGenerator          = new RequestGenerator(requestResponseRepository, opportunitiesRepository, config)
-      val validationStream          = new ValidationStreamFromGenerator(requestGenerator, endpointRequestExecutor, requestResponseRepository, opportunitiesRepository)
+      val validationStream = new ValidationStreamFromGenerator(
+        requestGenerator,
+        endpointRequestExecutor,
+        requestResponseRepository,
+        opportunitiesRepository
+      )
       for {
         sessionId <- ULID.next[Task].map(SessionId)
         session    = Session(sessionId, schema)
-        _         <- validationStream(session)
-                       .evalMapAccumulate(State.initial)((s, r) => processResult(schema, r, s).map(_ -> ()))
-                       .compile
-                       .drain
+        _ <- validationStream(session)
+          .evalMapAccumulate(State.initial)((s, r) => processResult(schema, r, s).map(_ -> ()))
+          .compile
+          .drain
       } yield ()
     }
-  }
 
   private def processResult(schema: ApplicationSchema, result: ValidatedRequestResponse, state: State): Task[State] =
     Task {
@@ -42,19 +53,20 @@ class GeneratorConsoleApp(implicit scheduler: Scheduler) {
 
       println(s"${color(result.isFailed)}#${state.requestIndex} ${result.request.prettyPrint}")
 
-      result.resolvedConditions.foreach { case (condition, status) =>
-        val predicate     = schema.condition(condition.conditionId)
-        val provenance    =
-          if (condition.provenance === result.requestId)
-            None
-          else
-            Some(state.resolve(condition.provenance).fold("[from earlier request]")(idx => s"[from request #$idx]"))
+      result.resolvedConditions.foreach {
+        case (condition, status) =>
+          val predicate = schema.condition(condition.conditionId)
+          val provenance =
+            if (condition.provenance === result.requestId)
+              None
+            else
+              Some(state.resolve(condition.provenance).fold("[from earlier request]")(idx => s"[from request #$idx]"))
 
-        val (icon, color) = status._1 match {
-          case Failed => "✖" -> Console.RED
-          case Passed => "✔" -> Console.GREEN
-        }
-        println(s"$color   $icon ${printer.print(predicate)} ${provenance.getOrElse("")}")
+          val (icon, color) = status._1 match {
+            case Failed => "✖" -> Console.RED
+            case Passed => "✔" -> Console.GREEN
+          }
+          println(s"$color   $icon ${printer.print(predicate)} ${provenance.getOrElse("")}")
       }
 
       state.add(result.requestId)
@@ -62,9 +74,11 @@ class GeneratorConsoleApp(implicit scheduler: Scheduler) {
 }
 
 object GeneratorConsoleApp {
-  private val requestHistorySize = 1000 // The maximum depth we expect for a deferred condition (i.e. consecutive pure calls)
+  private val requestHistorySize =
+    1000 // The maximum depth we expect for a deferred condition (i.e. consecutive pure calls)
 
   private case class State(requestIndex: Long, recentRequests: Queue[(EndpointRequestId, Long)]) {
+
     def add(request: EndpointRequestId): State = {
       val newRecentRequests = recentRequests.enqueue(request -> requestIndex)
       copy(

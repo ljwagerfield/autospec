@@ -34,14 +34,14 @@ object RunTestPlan extends IOApp {
         EndpointRequestSymbolic(
           EndpointId("list"),
           SMap.empty
-        ),
+        )
       )
     )
 
     Task.gather(
       List(
         new RestApi().run(),
-        new TestPlanConsoleApp().run(schema, List(testPath)),
+        new TestPlanConsoleApp().run(schema, List(testPath))
       )
     ).as(ExitCode.Success).to[IO]
   }

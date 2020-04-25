@@ -28,7 +28,10 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         ),
         removeOrError(42) -> checks(
           Equals(StatusCode(1), Literal(200)),
-          Or(Contains(ResponseBody(0),Literal(42)),Equals(StatusCode(1),Literal(404))) // Precondition on previous endpoint
+          Or(
+            Contains(ResponseBody(0), Literal(42)),
+            Equals(StatusCode(1), Literal(404))
+          ) // Precondition on previous endpoint
         ),
         list() -> checks(
           Not(Contains(ResponseBody(2), Literal(42))),
@@ -46,7 +49,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         list() -> checks(
           Contains(ResponseBody(1), Literal(42)), // Deferred postcondition from above request.
           Equals(Count(Distinct(ResponseBody(1))), Count(ResponseBody(1)))
-        ),
+        )
       )
     }
 
@@ -62,7 +65,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         list() -> checks(
           Contains(ResponseBody(2), Literal(52)),
           Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2)))
-        ),
+        )
       )
     }
 
@@ -78,7 +81,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         list() -> checks(
           Not(Contains(ResponseBody(2), Literal(42))),
           Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2)))
-        ),
+        )
       )
     }
 
@@ -119,7 +122,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
           // Contains(ResponseBody(2), Literal(42)), // Already consumed above.
           Equals(ResponseBody(1), ResponseBody(2)),
           Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2)))
-        ),
+        )
       )
     }
 
@@ -139,7 +142,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         list() -> checks(
           Contains(ResponseBody(3), Literal(42)),
           Equals(Count(Distinct(ResponseBody(3))), Count(ResponseBody(3)))
-        ),
+        )
       )
     }
 
@@ -150,8 +153,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
           Equals(StatusCode(0), Literal(200))
         ),
         list() -> checks(
-
-        ),
+          ),
         add(52) -> checks(
           Equals(StatusCode(2), Literal(200))
         ),
@@ -163,7 +165,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
             ),
             ResponseBody(3)
           )
-        ),
+        )
       )
     }
 
@@ -194,7 +196,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
           Equals(StatusCode(1), Literal(200))
         ),
         removeOrError(42) -> checks(
-          Equals(StatusCode(2), Literal(200)),
+          Equals(StatusCode(2), Literal(200))
           // Or(Contains(ResponseBody(0),Literal(42)),Equals(StatusCode(1),Literal(404))) // Invalidated by request #1
         ),
         list() -> checks(
@@ -215,7 +217,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         ),
         list() -> checks(
           Contains(ResponseBody(2), Literal(42)),
-          Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2))),
+          Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2)))
           // Equals(ResponseBody(0), ResponseBody(2)) // Discard this check as there's been a mutation since #0 was called
         )
       )
@@ -225,8 +227,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
       import autospec.ListApi.Client._
       test(
         list() -> checks(
-
-        ),
+          ),
         // IMPORTANT FOR THIS TEST: 'add' defers a condition that refers to both 0 and 2, but 2 cannot see 0 for its
         // own postconditions, as 1 mutates in between.
         add(42) -> checks(
@@ -239,9 +240,9 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
               Literal(42)
             ),
             ResponseBody(2)
-          ),
+          )
           // Equals(ResponseBody(0), ResponseBody(2)) // Discard this check as there's been a mutation since #0 was called
-        ),
+        )
       )
     }
 
@@ -258,7 +259,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
           Equals(StatusCode(1), Literal(200))
         ),
         listA() -> checks(
-          Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2))),
+          Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2)))
           // Equals(ResponseBody(0), ResponseBody(2)) // Discard this check as there's been a mutation since #0 was called
         )
       )
@@ -271,10 +272,12 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
           Equals(StatusCode(0), Literal(200))
         ),
         count() -> checks(
-
-        ),
+          ),
         list() -> checks(
-          Contains(ResponseBody(2), Literal(42)), // Request #1 is explicitly marked as pure, so shouldn't invalidate this postcondition.
+          Contains(
+            ResponseBody(2),
+            Literal(42)
+          ), // Request #1 is explicitly marked as pure, so shouldn't invalidate this postcondition.
           Equals(Count(ResponseBody(2)), ResponseBody(1)),
           Equals(Count(Distinct(ResponseBody(2))), Count(ResponseBody(2)))
         )
@@ -311,11 +314,11 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         )
       )(
         EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
-        ),
+          ),
         EndpointRequestSymbolic(EndpointId("delete"), SMap(EndpointParameterName("value") -> Literal(42))) -> checks(
-        ),
+          ),
         EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
-          Equals(ResponseBody(2), Subtract(ResponseBody(0), Literal(42))),
+          Equals(ResponseBody(2), Subtract(ResponseBody(0), Literal(42)))
         )
       )
     }
@@ -323,7 +326,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
     "support forward lookups appearing BEFORE nested reverse lookups within the same condition for a mutating endpoint" in {
       testInlineSpec(
         EndpointDefinition(
-          EndpointId("getByIndex"),
+          EndpointId("elementAt"),
           apiId,
           method,
           path,
@@ -349,29 +352,43 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
           Nil,
           List(
             SP.Equals(
-              S.Endpoint(EndpointId("getByIndex"), SMap(
-                EndpointParameterName("value") -> S.Subtract(S.Endpoint(EndpointId("count"), SMap.empty, evaluateAfterExecution = true), S.Literal(2))
-              ), evaluateAfterExecution = true),
-              S.Endpoint(EndpointId("getByIndex"), SMap(
-                EndpointParameterName("value") -> S.Subtract(S.Endpoint(EndpointId("count"), SMap.empty, evaluateAfterExecution = false), S.Literal(1))
-              ), evaluateAfterExecution = false)
+              S.Endpoint(
+                EndpointId("elementAt"),
+                SMap(
+                  EndpointParameterName("value") -> S.Subtract(
+                    S.Endpoint(EndpointId("count"), SMap.empty, evaluateAfterExecution = true),
+                    S.Literal(2)
+                  )
+                ),
+                evaluateAfterExecution = true
+              ),
+              S.Endpoint(
+                EndpointId("elementAt"),
+                SMap(
+                  EndpointParameterName("value") -> S.Subtract(
+                    S.Endpoint(EndpointId("count"), SMap.empty, evaluateAfterExecution = false),
+                    S.Literal(1)
+                  )
+                ),
+                evaluateAfterExecution = false
+              )
             )
           )
         )
       )(
         EndpointRequestSymbolic(EndpointId("append"), SMap(EndpointParameterName("value") -> Literal(42))) -> checks(
-        ),
+          ),
         EndpointRequestSymbolic(EndpointId("count"), SMap.empty) -> checks(
-        ),
-        EndpointRequestSymbolic(EndpointId("getByIndex"), SMap(EndpointParameterName("value") -> Literal(-1))) -> checks(
-        ),
+          ),
+        EndpointRequestSymbolic(EndpointId("elementAt"), SMap(EndpointParameterName("value") -> Literal(-1))) -> checks(
+          ),
         EndpointRequestSymbolic(EndpointId("append"), SMap(EndpointParameterName("value") -> Literal(50))) -> checks(
-        ),
+          ),
         EndpointRequestSymbolic(EndpointId("count"), SMap.empty) -> checks(
-        ),
-        EndpointRequestSymbolic(EndpointId("getByIndex"), SMap(EndpointParameterName("value") -> Literal(-2))) -> checks(
-          Equals(ResponseBody(5),ResponseBody(2))
-        ),
+          ),
+        EndpointRequestSymbolic(EndpointId("elementAt"), SMap(EndpointParameterName("value") -> Literal(-2))) -> checks(
+          Equals(ResponseBody(5), ResponseBody(2))
+        )
       )
     }
   }

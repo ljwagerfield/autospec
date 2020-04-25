@@ -14,7 +14,9 @@ trait SetApi[A] {
 }
 
 object SetApi {
+
   object Schema extends SetApi[EndpointDefinition] {
+
     def add(value: Int) =
       EndpointDefinition(
         currentMethodEndpointId,
@@ -36,7 +38,8 @@ object SetApi {
             Parameter(EndpointParameterName("value"))
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -64,7 +67,8 @@ object SetApi {
             )
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -100,7 +104,8 @@ object SetApi {
             )
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -142,12 +147,13 @@ object SetApi {
         forcePure = true
       )
   }
+
   object Client extends SetApi[EndpointRequestSymbolic] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-    def add(value: Int)           = ClientMacros.endpointRequest()
-    def remove(value: Int)        = ClientMacros.endpointRequest()
-    def removeOrError(value: Int) = ClientMacros.endpointRequest()
-    def list()                    = ClientMacros.endpointRequest()
-    def count()                   = ClientMacros.endpointRequest()
+    def add(value: Int)                    = ClientMacros.endpointRequest()
+    def remove(value: Int)                 = ClientMacros.endpointRequest()
+    def removeOrError(value: Int)          = ClientMacros.endpointRequest()
+    def list()                             = ClientMacros.endpointRequest()
+    def count()                            = ClientMacros.endpointRequest()
   }
 }

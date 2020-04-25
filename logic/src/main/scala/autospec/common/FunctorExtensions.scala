@@ -6,7 +6,9 @@ import cats.{Alternative, Bifoldable, FlatMap, Foldable, Monad, Monoid}
 import monix.eval.Task
 
 object FunctorExtensions {
+
   implicit class RichF[F[_], A](val fa: F[A]) extends AnyVal {
+
     def flatPartitionBifold[H[_, _], B, C](
       f: A => H[F[B], F[C]]
     )(implicit A: Alternative[F], F: Foldable[F], F2: FlatMap[F], H: Bifoldable[H]): (F[B], F[C]) = {
@@ -19,12 +21,11 @@ object FunctorExtensions {
         val (isAfter, result) = accum
         if (result.nonEmpty)
           accum
-        else if (isAfter) {
+        else if (isAfter)
           if (select(response))
             isAfter -> Some(response)
           else
             accum
-        }
         else if (after(response))
           true -> None
         else
@@ -48,6 +49,7 @@ object FunctorExtensions {
   }
 
   implicit class RichOption[A](val value: Option[A]) extends AnyVal {
+
     def ifNone(thunk: => Unit): Option[A] = {
       thunk
       value
@@ -55,6 +57,7 @@ object FunctorExtensions {
   }
 
   implicit class RichMapM[K, V, F[_]](val value: Map[K, F[V]]) extends AnyVal {
+
     def merge(map: Map[K, F[V]])(implicit M: Monoid[F[V]]): Map[K, F[V]] =
       map.foldLeft(value) { (result, kvp) =>
         val (key, value) = kvp
@@ -69,23 +72,27 @@ object FunctorExtensions {
   }
 
   implicit class RichMap[K, V](val value: Map[K, V]) extends AnyVal {
+
     def partitionEither[A, B](callback: V => Either[A, B]): (Map[K, A], Map[K, B]) = {
-      val (aList, bList) = value.toList.partitionEither { case (k, v) => callback(v).fold(x => Left(k -> x), x => Right(k -> x)) }
+      val (aList, bList) = value.toList.partitionEither {
+        case (k, v) => callback(v).fold(x => Left(k -> x), x => Right(k -> x))
+      }
       (
         aList.toMap,
         bList.toMap
       )
     }
 
-    def partitionEitherM[A, B, F[_] : Monad](callback: V => F[Either[A, B]]): F[(Map[K, A], Map[K, B])] =
+    def partitionEitherM[A, B, F[_]: Monad](callback: V => F[Either[A, B]]): F[(Map[K, A], Map[K, B])] =
       value
         .toList
         .partitionEitherM { case (k, v) => callback(v).map(_.fold(x => Left(k -> x), x => Right(k -> x))) }
-        .map { case (aList, bList) =>
-          (
-            aList.toMap,
-            bList.toMap
-          )
+        .map {
+          case (aList, bList) =>
+            (
+              aList.toMap,
+              bList.toMap
+            )
         }
 
     def swap: Map[V, Set[K]] =

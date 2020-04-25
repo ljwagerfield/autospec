@@ -4,8 +4,10 @@ import autospec.SchemaSymbols.{Predicate => SP}
 import autospec.{SchemaSymbols => S}
 
 object SymbolExtensions {
+
   implicit class RichSchemaSymbol(val symbol: S.Symbol) extends AnyVal {
-    def toList: List[S.Symbol] = {
+
+    def toList: List[S.Symbol] =
       symbol match {
         case x: S.Literal                      => List(x)
         case x: S.LambdaParameter              => List(x)
@@ -31,6 +33,5 @@ object SymbolExtensions {
         case x @ SP.Exists(symbol, predicate)  => x :: predicate.toList ::: symbol.toList
         case x @ SP.Contains(collection, item) => x :: item.toList ::: collection.toList
       }
-    }
   }
 }

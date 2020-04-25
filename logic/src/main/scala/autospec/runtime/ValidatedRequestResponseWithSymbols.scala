@@ -4,9 +4,9 @@ import autospec.schema.ConditionIdWithProvenance
 import autospec.{RuntimeSymbolsExecuted => RE}
 
 case class ValidatedRequestResponseWithSymbols(
-    validatedRequestResponse: ValidatedRequestResponse,
-    requestSymbolic: EndpointRequestSymbolic
-  ) {
+  validatedRequestResponse: ValidatedRequestResponse,
+  requestSymbolic: EndpointRequestSymbolic
+) {
   def request: EndpointRequest     = validatedRequestResponse.request
   def requestId: EndpointRequestId = validatedRequestResponse.requestId
   def response: EndpointResponse   = validatedRequestResponse.response

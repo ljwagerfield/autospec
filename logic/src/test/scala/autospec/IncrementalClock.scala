@@ -7,6 +7,7 @@ import monix.eval.Task
 import scala.concurrent.duration.TimeUnit
 
 object IncrementalClock {
+
   implicit val instance: Clock[Task] = new Clock[Task] {
     import monix.execution.Scheduler.Implicits.global
 

@@ -11,16 +11,17 @@ trait SymbolPrinter {
 }
 
 object ScalaSymbolPrinter extends SymbolPrinter {
+
   override def print(symbol: S.Symbol): String = {
     val p = print(_: S.Symbol)
 
     common(S)(symbol) {
-      case S.ResponseBody                                 => "body"
-      case S.StatusCode                                   => "status"
-      case S.Parameter(name)                              => name.value
+      case S.ResponseBody    => "body"
+      case S.StatusCode      => "status"
+      case S.Parameter(name) => name.value
       case S.Endpoint(id, params, evaluateAfterExecution) =>
-        val prePost      = if (evaluateAfterExecution) "post" else "pre"
-        val methodName   = id.value
+        val prePost    = if (evaluateAfterExecution) "post" else "pre"
+        val methodName = id.value
         val paramsString = params
           .map { case (name, value) => s"$name=${p(value)}" }
           .mkString(", ")
@@ -40,7 +41,7 @@ object ScalaSymbolPrinter extends SymbolPrinter {
     symbol match {
       case x: family.Literal            => x.value.toString()
       case x: family.LambdaParameter    => if (x.distance === 0) "_" else symbol.toString
-      case x: family.Map                => s"${p(x.symbol)}[${{p(x.path)}}]"
+      case x: family.Map                => s"${p(x.symbol)}[${p(x.path)}]"
       case x: family.FlatMap            => p(family.Flatten(family.Map(x.symbol, x.path)))
       case x: family.Flatten            => s"${p(x.symbol)}.flatten"
       case x: family.Find               => s"${p(x.symbol)}.find(${p(x.predicate)})"
@@ -64,7 +65,9 @@ object ScalaSymbolPrinter extends SymbolPrinter {
   override def print(request: EndpointRequestSymbolic, currentRequest: EndpointRequestIndex): String =
     s"${request.endpointId.value}(${request.parameterValues.toList.map(x => s"${x._1.value} = ${print(x._2, currentRequest)}").mkString(", ")})"
 
-  private def wrapParenthesis(family: CommonSymbols)(value: String, left: family.Symbol, right: family.Symbol): String = {
+  private def wrapParenthesis(
+    family: CommonSymbols
+  )(value: String, left: family.Symbol, right: family.Symbol): String = {
     val leftIsPred =
       left match {
         case _: family.Predicate => true

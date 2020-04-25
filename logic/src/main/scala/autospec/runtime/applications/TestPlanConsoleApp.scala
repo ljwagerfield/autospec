@@ -23,7 +23,11 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
       }
     }
 
-  private def printResults(schema: ApplicationSchema, paths: List[TestPlan], testResults: Map[TestPlanId, List[ValidatedRequestResponseWithSymbols]]): Unit = {
+  private def printResults(
+    schema: ApplicationSchema,
+    paths: List[TestPlan],
+    testResults: Map[TestPlanId, List[ValidatedRequestResponseWithSymbols]]
+  ): Unit = {
     def color(failed: Boolean) = if (failed) Console.RED else Console.GREEN
 
     println(s"${color(false)}Tests:")
@@ -33,35 +37,39 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
       println(s"${color(false)}  ${path.id.value}:")
       val pathResult    = testResults(path.id)
       val allConditions = pathResult.flatMap(_.resolvedConditions).toMap
-      pathResult.zipWithIndex.foreach { case (result, index) =>
-        val request          = result.requestSymbolic
-        val isTestPathFailed = result.isFailed
-        val conditions       = schema.endpoint(request.endpointId).conditions
+      pathResult.zipWithIndex.foreach {
+        case (result, index) =>
+          val request          = result.requestSymbolic
+          val isTestPathFailed = result.isFailed
+          val conditions       = schema.endpoint(request.endpointId).conditions
 
-        println(s"${color(isTestPathFailed)}    $index: ${printer.print(request, index)}")
-        conditions.foreach { case (conditionId, predicate) =>
-          val (icon, color)   = allConditions.get(conditionId.withProvenance(result.requestId)).map(_._1) match {
-            case None         => "?" -> Console.YELLOW
-            case Some(Failed) => "✖" -> Console.RED
-            case Some(Passed) => "✔" -> Console.GREEN
+          println(s"${color(isTestPathFailed)}    $index: ${printer.print(request, index)}")
+          conditions.foreach {
+            case (conditionId, predicate) =>
+              val (icon, color) = allConditions.get(conditionId.withProvenance(result.requestId)).map(_._1) match {
+                case None         => "?" -> Console.YELLOW
+                case Some(Failed) => "✖" -> Console.RED
+                case Some(Passed) => "✔" -> Console.GREEN
+              }
+              println(s"$color       $icon ${printer.print(predicate)}")
           }
-          println(s"$color       $icon ${printer.print(predicate)}")
-        }
       }
 
       print(Console.RESET)
 
       if (pathResult.exists(_.isFailed)) {
         println(s"${Console.RESET}    responses:")
-        pathResult.zipWithIndex.foreach { case (response, index) =>
-          println(s"      $index: $response")
+        pathResult.zipWithIndex.foreach {
+          case (response, index) =>
+            println(s"      $index: $response")
         }
       }
 
       println()
     }
 
-    val failureCount = testResults.values.toList.flatMap(_.toList).flatMap(_.resolvedConditions.values.toList).count(_._1.isFailed)
+    val failureCount =
+      testResults.values.toList.flatMap(_.toList).flatMap(_.resolvedConditions.values.toList).count(_._1.isFailed)
 
     if (failureCount === 0)
       print(s"${color(false)}All tests passed.")

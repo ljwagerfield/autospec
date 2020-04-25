@@ -4,7 +4,8 @@ import cats.effect.concurrent.Ref
 import monix.eval.Task
 
 class OpportunitiesRepository {
-  private val sessionsRef: Ref[Task, Map[SessionId, List[Opportunities]]] = Ref.unsafe[Task, Map[SessionId, List[Opportunities]]](Map.empty)
+  private val sessionsRef: Ref[Task, Map[SessionId, List[Opportunities]]] =
+    Ref.unsafe[Task, Map[SessionId, List[Opportunities]]](Map.empty)
 
   def saveOpportunities(sessionId: SessionId, opportunities: Opportunities): Task[Unit] =
     sessionsRef.update { sessions =>

@@ -24,12 +24,16 @@ object RuntimeSymbolResolver {
   def resolvePredicate(symbol: RE.Predicate, resolve: EndpointRequestId => EndpointResponse): Boolean =
     resolvePredicate[RE.type, EndpointRequestId](RE)(symbol, convertToBaseSymbolRE(resolve))
 
-  private def resolveSymbol[A <: RuntimeSymbolsLike[B], B](family: A)(symbol: family.Symbol, resolve: family.OwnSymbols => Json): Json =
+  private def resolveSymbol[A <: RuntimeSymbolsLike[B], B](
+    family: A
+  )(symbol: family.Symbol, resolve: family.OwnSymbols => Json): Json =
     BaseSymbolResolver.resolveSymbol(
       BaseSymbolResolver.convertToBaseSymbol[Id, A](family)(symbol)(resolve)
     )
 
-  private def resolvePredicate[A <: RuntimeSymbolsLike[B], B](family: A)(predicate: family.Predicate, resolve: family.OwnSymbols => Json): Boolean =
+  private def resolvePredicate[A <: RuntimeSymbolsLike[B], B](
+    family: A
+  )(predicate: family.Predicate, resolve: family.OwnSymbols => Json): Boolean =
     BaseSymbolResolver.resolvePredicate(
       BaseSymbolResolver.convertToBasePredicate[Id, A](family)(predicate)(resolve)
     )

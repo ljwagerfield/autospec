@@ -15,78 +15,72 @@ import autospec.common.MathUtils.weightedRandom
 // [ ] Make 'Request' not just 'EndpointId' but also take params.
 @silent
 object RuntimeFSMSpike extends App {
-  type EndpointId = String
-  type Request = EndpointId
-  type State = String
+  type EndpointId     = String
+  type Request        = EndpointId
+  type State          = String
   type EndpointWeight = Int
-  type Predicate = State => Boolean
+  type Predicate      = State => Boolean
+
   case class Endpoint(name: EndpointId, preconditions: List[Predicate], action: Endo[State]) {
     def isCallable(state: State): Boolean =
       preconditions.forall(_(state))
   }
 
   /**
-   * The maximum probability factor to apply to rarely seen endpoints compared to the most commonly seen endpoints.
-   * For example, a factor of 10 says "if we've seen endpoint A once, and endpoint B every time, then give endpoint
-   * A 10x the chance of being called than endpoint B".
-   */
+    * The maximum probability factor to apply to rarely seen endpoints compared to the most commonly seen endpoints.
+    * For example, a factor of 10 says "if we've seen endpoint A once, and endpoint B every time, then give endpoint
+    * A 10x the chance of being called than endpoint B".
+    */
   val endpointWeightMemory = 10
 
   /**
-   * Strand length = the length from 'where the first of the bug reproduction steps is made, excluding any earlier steps
-   * that are implied from the first step' to 'where the bug is observed'. E.g. first step would be 'set FDA' not
-   * 'create negotiation', as it's impossible to 'set FDA' without 'create negotiation' anyway.
-   *
-   * 3-stage bugs are supersets of 2-stage bugs, and 2-stage bugs are supersets of 1-stage bugs, and so on.
-   *
-   * Since most bugs are 3-stage and below, we report how many unique 3-stage paths we've tested.
-   *
-   * Of course, some bugs are more than 3-stage, and these are tested too: the 'stage-ness' is not a constraint in the
-   * software, but merely a reporting method.
-   */
-  val strandSize = 4
+    * Strand length = the length from 'where the first of the bug reproduction steps is made, excluding any earlier steps
+    * that are implied from the first step' to 'where the bug is observed'. E.g. first step would be 'set FDA' not
+    * 'create negotiation', as it's impossible to 'set FDA' without 'create negotiation' anyway.
+    *
+    * 3-stage bugs are supersets of 2-stage bugs, and 2-stage bugs are supersets of 1-stage bugs, and so on.
+    *
+    * Since most bugs are 3-stage and below, we report how many unique 3-stage paths we've tested.
+    *
+    * Of course, some bugs are more than 3-stage, and these are tested too: the 'stage-ness' is not a constraint in the
+    * software, but merely a reporting method.
+    */
+  val strandSize          = 4
   val initialState: State = "<none>"
-  val immutableStates = Set("<none>", "cancelled")
-  val maxRequests = 100
+  val immutableStates     = Set("<none>", "cancelled")
+  val maxRequests         = 100
+
   val endpoints = List(
     Endpoint(
       "create",
       List(
-
-      ),
+        ),
       _ => "draft"
     ),
     Endpoint(
       "cancel",
-      List(
-        x => !immutableStates.contains(x)
-      ),
+      List(x => !immutableStates.contains(x)),
       _ => "cancelled"
     ),
     Endpoint(
       "editAnswers",
-      List(
-        x => Set("draft", "receiverDraft", "amending").contains(x)
-      ),
+      List(x => Set("draft", "receiverDraft", "amending").contains(x)),
       identity
     ),
     Endpoint(
       "setApprovals",
-      List(
-        x => !immutableStates.contains(x)
-      ),
+      List(x => !immutableStates.contains(x)),
       identity
     ),
     Endpoint(
       "sendToCounterparty",
-      List(
-        x => !(immutableStates + "inviting" + "confirmed" + "agreed").contains(x)
-      ),
-      s => Map(
-        "draft" -> "inviting",
-        "receiverDraft" -> "amending",
-        "amending" -> "amending",
-      )(s)
+      List(x => !(immutableStates + "inviting" + "confirmed" + "agreed").contains(x)),
+      s =>
+        Map(
+          "draft"         -> "inviting",
+          "receiverDraft" -> "amending",
+          "amending"      -> "amending"
+        )(s)
     ),
     Endpoint(
       "accept",
@@ -97,13 +91,12 @@ object RuntimeFSMSpike extends App {
     ),
     Endpoint(
       "confirm",
-      List(
-        x => Set("amending", "confirmed").contains(x)
-      ),
-      s => Map(
-        "amending" -> "confirmed",
-        "confirmed" -> "agreed"
-      )(s)
+      List(x => Set("amending", "confirmed").contains(x)),
+      s =>
+        Map(
+          "amending"  -> "confirmed",
+          "confirmed" -> "agreed"
+        )(s)
     )
   )
 
@@ -131,11 +124,15 @@ object RuntimeFSMSpike extends App {
   }
 
   @scala.annotation.tailrec
-  def findUniqueStrands(state: State, history: List[(Set[EndpointId], Request)], uniqueStrands: Set[List[Request]], timeout: Int): (Int, Int) = {
+  def findUniqueStrands(
+    state: State,
+    history: List[(Set[EndpointId], Request)],
+    uniqueStrands: Set[List[Request]],
+    timeout: Int
+  ): (Int, Int) = {
     val timeoutLimit = 100000
-    if (timeout === timeoutLimit) { // Give up after N iterations of not finding any new strands
+    if (timeout === timeoutLimit) // Give up after N iterations of not finding any new strands
       uniqueStrands.size -> (history.size - timeoutLimit) // Remove fruitless requests
-    }
     else {
       val (callableEndpoints, request) = nextRequest(state, history)
       val strand                       = request :: history.take(strandSize - 1).map(_._2)
@@ -158,7 +155,9 @@ object RuntimeFSMSpike extends App {
   }
 
   def endpointWeight(state: State, history: List[(Set[EndpointId], Request)], endpoint: Endpoint): EndpointWeight = {
-    val count      = history.take(endpointWeightMemory).count { case (callableEndpoints, _) => callableEndpoints.contains(endpoint.name)  }
+    val count = history.take(endpointWeightMemory).count {
+      case (callableEndpoints, _) => callableEndpoints.contains(endpoint.name)
+    }
     val penalty    = count + 1
     val maxPenalty = endpointWeightMemory + 1
 
@@ -177,9 +176,9 @@ object RuntimeFSMSpike extends App {
     maxPenalty - count
   }
 
-  val start = System.currentTimeMillis()
+  val start                         = System.currentTimeMillis()
   val (uniqueStrands, requestCount) = findUniqueStrandsAvg()
-  val end = System.currentTimeMillis()
+  val end                           = System.currentTimeMillis()
   println()
   println(s"Number of $strandSize-strands found: $uniqueStrands (in $requestCount requests)")
   println()

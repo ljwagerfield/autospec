@@ -12,7 +12,9 @@ trait ListApi[A] {
 }
 
 object ListApi {
+
   object Schema extends ListApi[EndpointDefinition] {
+
     def add(value: Int) =
       EndpointDefinition(
         currentMethodEndpointId,
@@ -38,7 +40,8 @@ object ListApi {
             Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true)
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -66,7 +69,8 @@ object ListApi {
             )
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -87,10 +91,11 @@ object ListApi {
         )
       )
   }
+
   object Client extends ListApi[EndpointRequestSymbolic] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-    def add(value: Int)    = ClientMacros.endpointRequest()
-    def remove(value: Int) = ClientMacros.endpointRequest()
-    def list()             = ClientMacros.endpointRequest()
+    def add(value: Int)                    = ClientMacros.endpointRequest()
+    def remove(value: Int)                 = ClientMacros.endpointRequest()
+    def list()                             = ClientMacros.endpointRequest()
   }
 }

@@ -13,14 +13,14 @@ import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
 
 class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
-  private var state = List.empty[Int]
+  private var state               = List.empty[Int]
   implicit val timer: Timer[Task] = Task.timer(scheduler)
 
   val myService: HttpRoutes[Task] = HttpRoutes.of[Task] {
     case GET -> Root / "foos" =>
       Ok(state.asJson)
 
-    case DELETE -> Root / "foos" / value  =>
+    case DELETE -> Root / "foos" / value =>
       val valueInt = value.toInt
       state = state.filterNot(_ === valueInt)
       NoContent()
@@ -31,9 +31,7 @@ class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
           value <- body.as[String]
           _     <- Task { state = (value.toInt :: state).distinct }
           resp  <- Ok(())
-        } yield {
-          resp
-        }
+        } yield resp
       }.onErrorRecoverWith {
         case t => InternalServerError(t.toString)
       }

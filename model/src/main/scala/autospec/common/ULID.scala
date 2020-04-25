@@ -11,11 +11,12 @@ import de.huxhorn.sulky.ulid.{ULID => ULIDGenerator}
 case class ULID(value: ULIDValue)
 
 object ULID {
+
   /**
-   * WARNING:
-   * ULIDs generated in tight loops may not be causally ordered: the timestamp component has millisecond granularity.
-   * For unit tests, use an artificial clock that ticks on every resolve.
-   */
+    * WARNING:
+    * ULIDs generated in tight loops may not be causally ordered: the timestamp component has millisecond granularity.
+    * For unit tests, use an artificial clock that ticks on every resolve.
+    */
   implicit val ordering: Ordering[ULID] = scala.Ordering.by(_.value)
   implicit val order: Order[ULID]       = Order.fromOrdering
 
@@ -27,7 +28,5 @@ object ULID {
     for {
       millis <- implicitly[Clock[F]].realTime(TimeUnit.MILLISECONDS)
       ulid   <- Sync[F].delay(ULID(ulidGenerator.nextValue(millis)))
-    } yield {
-      ulid
-    }
+    } yield ulid
 }

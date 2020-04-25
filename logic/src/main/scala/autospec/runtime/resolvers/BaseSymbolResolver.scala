@@ -10,15 +10,15 @@ import autospec.BaseSymbols._
 
 object BaseSymbolResolver {
 
-  def convertToBaseSymbol[F[_]: Applicative, A <: autospec.CommonSymbols](s: A)(symbol: s.Symbol)(convert: s.OwnSymbols => F[Json]): F[Symbol] =
-    SymbolConverter.convertSymbol(s, BaseSymbols)(symbol) { symbol =>
-      convert(symbol).map(Literal.apply)
-    }
+  def convertToBaseSymbol[F[_]: Applicative, A <: autospec.CommonSymbols](
+    family: A
+  )(symbol: family.Symbol)(convert: family.OwnSymbols => F[Json]): F[Symbol] =
+    SymbolConverter.convertSymbol(family, BaseSymbols)(symbol)(symbol => convert(symbol).map(Literal.apply))
 
-  def convertToBasePredicate[F[_]: Applicative, A <: autospec.CommonSymbols](s: A)(symbol: s.Predicate)(convert: s.OwnSymbols => F[Json]): F[Predicate] =
-    SymbolConverter.convertPredicate(s, BaseSymbols)(symbol) { symbol =>
-      convert(symbol).map(Literal.apply)
-    }
+  def convertToBasePredicate[F[_]: Applicative, A <: autospec.CommonSymbols](
+    family: A
+  )(symbol: family.Predicate)(convert: family.OwnSymbols => F[Json]): F[Predicate] =
+    SymbolConverter.convertPredicate(family, BaseSymbols)(symbol)(symbol => convert(symbol).map(Literal.apply))
 
   def resolveSymbol(symbol: Symbol): Json =
     resolveSymbol(Nil, symbol)
@@ -30,11 +30,12 @@ object BaseSymbolResolver {
     val resolveSym  = resolveSymbol(lambdaParameterStack, _: Symbol)
     val resolvePred = resolvePredicate(lambdaParameterStack, _: Predicate)
     predicate match {
-      case Equals(left, right)        => resolveSym(left) === resolveSym(right)
-      case And(left, right)           => resolvePred(left) && resolvePred(right)
-      case Or(left, right)            => resolvePred(left) || resolvePred(right)
-      case Not(pred)                  => !resolvePred(pred)
-      case Exists(symbol, pred)       => toVector(resolveSym(symbol)).exists(json => resolvePredicate(json :: lambdaParameterStack, pred))
+      case Equals(left, right) => resolveSym(left) === resolveSym(right)
+      case And(left, right)    => resolvePred(left) && resolvePred(right)
+      case Or(left, right)     => resolvePred(left) || resolvePred(right)
+      case Not(pred)           => !resolvePred(pred)
+      case Exists(symbol, pred) =>
+        toVector(resolveSym(symbol)).exists(json => resolvePredicate(json :: lambdaParameterStack, pred))
       case Contains(collection, item) => toVector(resolveSym(collection)).contains_(resolveSym(item))
     }
   }
@@ -42,18 +43,19 @@ object BaseSymbolResolver {
   private def resolveSymbol(lambdaParameterStack: List[Json], symbol: Symbol): Json = {
     val resolve = resolveSymbol(lambdaParameterStack, _: Symbol)
     symbol match {
-      case Literal(value)                   => value
-      case LambdaParameter(distance)        => lambdaParameterStack(distance)
-      case Map(symbol, path)                => toVector(resolve(path)).foldLeft(resolve(symbol))(mapJson)
-      case FlatMap(symbol, path)            => resolve(Flatten(Map(symbol, path)))
-      case Flatten(symbol)                  => flatten(resolve(symbol))
-      case Find(symbol, predicate)          =>
+      case Literal(value)            => value
+      case LambdaParameter(distance) => lambdaParameterStack(distance)
+      case Map(symbol, path)         => toVector(resolve(path)).foldLeft(resolve(symbol))(mapJson)
+      case FlatMap(symbol, path)     => resolve(Flatten(Map(symbol, path)))
+      case Flatten(symbol)           => flatten(resolve(symbol))
+      case Count(symbol)             => Json.fromInt(toVector(resolve(symbol)).size)
+      case Distinct(symbol)          => Json.fromValues(toVector(resolve(symbol)).distinct)
+      case Concat(left, right)       => Json.fromValues(toVector(resolve(left)) ++ toVector(resolve(right)))
+
+      case Find(symbol, predicate) =>
         toVector(resolve(symbol))
           .find(json => resolvePredicate(json :: lambdaParameterStack, predicate))
           .getOrElse(Json.Null)
-      case Count(symbol)                    => Json.fromInt(toVector(resolve(symbol)).size)
-      case Distinct(symbol)                 => Json.fromValues(toVector(resolve(symbol)).distinct)
-      case Concat(left, right)              => Json.fromValues(toVector(resolve(left)) ++ toVector(resolve(right)))
 
       case Add(left, right) =>
         val leftJson  = resolve(left)
@@ -66,9 +68,11 @@ object BaseSymbolResolver {
           (leftJson.asNumberNullAsZero, rightJson.asNumberNullAsZero)
             .mapN(_ + _)
             .map(Json.fromJsonNumber)
-            .getOrElse(Json.fromString(
-              toStringNoQuotes(leftJson) + toStringNoQuotes(rightJson)
-            ))
+            .getOrElse(
+              Json.fromString(
+                toStringNoQuotes(leftJson) + toStringNoQuotes(rightJson)
+              )
+            )
 
       case Subtract(left, right) =>
         val leftJson  = resolve(left)
@@ -79,27 +83,33 @@ object BaseSymbolResolver {
           (leftJson.asNumberNullAsZero, rightJson.asNumberNullAsZero)
             .mapN(_ - _)
             .map(Json.fromJsonNumber)
-            .getOrElse(Json.fromString(
-              "NaN"
-            ))
+            .getOrElse(
+              Json.fromString(
+                "NaN"
+              )
+            )
 
       case Multiply(left, right) =>
         (resolve(left).asNumberNullAsZero, resolve(right).asNumberNullAsZero)
           .mapN(_ * _)
           .map(Json.fromJsonNumber)
-          .getOrElse(Json.fromString(
-            "NaN"
-          ))
+          .getOrElse(
+            Json.fromString(
+              "NaN"
+            )
+          )
 
       case Divide(left, right) =>
         (resolve(left).asNumberNullAsZero, resolve(right).asNumberNullAsZero)
           .mapN(_ / _)
           .map(Json.fromJsonNumber)
-          .getOrElse(Json.fromString(
-            "NaN"
-          ))
+          .getOrElse(
+            Json.fromString(
+              "NaN"
+            )
+          )
 
-      case predicate: Predicate             => Json.fromBoolean(resolvePredicate(lambdaParameterStack, predicate))
+      case predicate: Predicate => Json.fromBoolean(resolvePredicate(lambdaParameterStack, predicate))
     }
   }
 

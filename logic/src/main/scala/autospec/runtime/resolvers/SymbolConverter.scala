@@ -5,6 +5,7 @@ import cats.implicits._
 import autospec.CommonSymbols
 
 object SymbolConverter {
+
   def convertSymbol[
     F[_]: Applicative,
     A <: CommonSymbols,

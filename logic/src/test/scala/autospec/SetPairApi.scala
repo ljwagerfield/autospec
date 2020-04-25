@@ -6,10 +6,10 @@ import autospec.runtime.EndpointRequestSymbolic
 import autospec.schema._
 
 /**
- * Holds two independent sets 'A' and 'B' and provides mutators/accessors to each.
- *
- * 'addA' has no impact on 'listB', and 'addB' has no impact on 'listA'.
- */
+  * Holds two independent sets 'A' and 'B' and provides mutators/accessors to each.
+  *
+  * 'addA' has no impact on 'listB', and 'addB' has no impact on 'listA'.
+  */
 trait SetPairApi[A] {
   // State A
   def addA(value: Int): A
@@ -21,7 +21,9 @@ trait SetPairApi[A] {
 }
 
 object SetPairApi {
+
   object Schema extends SetPairApi[EndpointDefinition] {
+
     def addA(value: Int) =
       EndpointDefinition(
         currentMethodEndpointId,
@@ -43,7 +45,8 @@ object SetPairApi {
             Parameter(EndpointParameterName("value"))
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -69,7 +72,8 @@ object SetPairApi {
             Parameter(EndpointParameterName("value"))
           ),
           Predicate.Equals(
-            StatusCode, Literal(200)
+            StatusCode,
+            Literal(200)
           )
         )
       )
@@ -114,11 +118,12 @@ object SetPairApi {
         )
       )
   }
+
   object Client extends SetPairApi[EndpointRequestSymbolic] {
     implicit val schema: ApplicationSchema = schemaFromObject(Schema)
-    def addA(value: Int) = ClientMacros.endpointRequest()
-    def addB(value: Int) = ClientMacros.endpointRequest()
-    def listA()          = ClientMacros.endpointRequest()
-    def listB()          = ClientMacros.endpointRequest()
+    def addA(value: Int)                   = ClientMacros.endpointRequest()
+    def addB(value: Int)                   = ClientMacros.endpointRequest()
+    def listA()                            = ClientMacros.endpointRequest()
+    def listB()                            = ClientMacros.endpointRequest()
   }
 }

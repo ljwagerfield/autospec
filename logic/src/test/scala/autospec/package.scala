@@ -37,7 +37,7 @@ package object autospec {
             val paramType = param.getType
             if (paramType.isPrimitive)
               unboxedTypesWithValues
-                .collectFirst { case (clazz, value) if clazz.isAssignableFrom(paramType) => value}
+                .collectFirst { case (clazz, value) if clazz.isAssignableFrom(paramType) => value }
                 .getOrElse(throw new Exception(s"Primitives of type ${paramType.getName} are currently unsupported."))
             else
               null
@@ -45,7 +45,10 @@ package object autospec {
 
         method.invoke(schemaObj, params: _*) match {
           case x: EndpointDefinition => x
-          case _                     => throw new Exception(s"All public methods on schema objects must contain ${classOf[EndpointDefinition].getSimpleName}.")
+          case _ =>
+            throw new Exception(
+              s"All public methods on schema objects must contain ${classOf[EndpointDefinition].getSimpleName}."
+            )
         }
       }
     )

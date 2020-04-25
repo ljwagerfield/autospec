@@ -9,7 +9,10 @@ import autospec.schema.ApplicationSchema
 
 class ValidationStreamFromTestPlan(requestExecutor: EndpointRequestExecutor) {
 
-  def apply(schema: ApplicationSchema, path: List[EndpointRequestSymbolic]): Stream[Task, ValidatedRequestResponseWithSymbols] =
+  def apply(
+    schema: ApplicationSchema,
+    path: List[EndpointRequestSymbolic]
+  ): Stream[Task, ValidatedRequestResponseWithSymbols] =
     requestStream(path)
       .through(responseStream(schema))
       .through(validationStream(schema))
@@ -17,7 +20,9 @@ class ValidationStreamFromTestPlan(requestExecutor: EndpointRequestExecutor) {
   private def requestStream(path: List[EndpointRequestSymbolic]): Stream[Task, EndpointRequestSymbolic] =
     Stream.emits[Task, EndpointRequestSymbolic](path)
 
-  private def responseStream(schema: ApplicationSchema)(requestStream: Stream[Task, EndpointRequestSymbolic]): Stream[Task, (EndpointRequestSymbolic, EndpointRequestResponse)] =
+  private def responseStream(schema: ApplicationSchema)(
+    requestStream: Stream[Task, EndpointRequestSymbolic]
+  ): Stream[Task, (EndpointRequestSymbolic, EndpointRequestResponse)] =
     requestStream
       .evalMapAccumulate(Chain.empty[EndpointResponse]) { (oldHistory, requestSymbolic) =>
         val request = resolveRequestSymbols(requestSymbolic, oldHistory)
@@ -28,17 +33,23 @@ class ValidationStreamFromTestPlan(requestExecutor: EndpointRequestExecutor) {
       }
       .map(_._2)
 
-  private def validationStream(schema: ApplicationSchema)(responseStream: Stream[Task, (EndpointRequestSymbolic, EndpointRequestResponse)]): Stream[Task, ValidatedRequestResponseWithSymbols] =
+  private def validationStream(schema: ApplicationSchema)(
+    responseStream: Stream[Task, (EndpointRequestSymbolic, EndpointRequestResponse)]
+  ): Stream[Task, ValidatedRequestResponseWithSymbols] =
     ResponseValidator
       .stream(schema, responseStream)(_._2)
-      .map { case ((requestSymbolic, _), validatedResponse) =>
-        ValidatedRequestResponseWithSymbols(
-          validatedResponse,
-          requestSymbolic
-        )
+      .map {
+        case ((requestSymbolic, _), validatedResponse) =>
+          ValidatedRequestResponseWithSymbols(
+            validatedResponse,
+            requestSymbolic
+          )
       }
 
-  private def resolveRequestSymbols(request: EndpointRequestSymbolic, history: Chain[EndpointResponse]): EndpointRequest =
+  private def resolveRequestSymbols(
+    request: EndpointRequestSymbolic,
+    history: Chain[EndpointResponse]
+  ): EndpointRequest =
     EndpointRequest(
       request.endpointId,
       request
