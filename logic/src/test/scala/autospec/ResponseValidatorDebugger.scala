@@ -1,16 +1,15 @@
 package autospec
 
+import autospec.common.ULID
+import autospec.runtime._
+import autospec.runtime.resolvers.SymbolConverter
+import autospec.schema.ApplicationSchema
+import autospec.{RuntimeSymbolsExecuted => RE, RuntimeSymbolsIndexed => RI}
 import cats.Id
 import cats.implicits._
 import io.circe.Json
 import monix.eval.Task
 import playground.{EndpointRequestResponse, ValidationStreamFromTestPlan}
-import autospec.common.ULID
-import autospec.runtime._
-import autospec.runtime.resolvers.SymbolConverter
-import autospec.schema.{ApplicationSchema, ConditionIdWithProvenance}
-import autospec.{RuntimeSymbols => R, SchemaSymbols => S}
-
 /**
  * Transforms the output of [[autospec.runtime.ResponseValidator]] into a more testable structure.
  */
@@ -48,68 +47,23 @@ object ResponseValidatorDebugger {
     responses.map { response =>
       EndpointRequestWithChecks(
         response.requestSymbolic,
-        response.resolvedConditions.keySet.map(resolve(schema, responses))
+        response.resolvedConditions.values.map { case (_, predicate) =>
+          convertToIndexedSymbol(
+            id => responses.indexWhere(_.requestId === id).toLong,
+            predicate
+          )
+        }.toSet
       )
     }
   }
 
-  /**
-   * Converts resolved/verified schema predicates into runtime predicates, so the acc. tests can verify which specific
-   * endpoints they were tested against.
-   */
-  private def resolve(schema: ApplicationSchema, history: List[ValidatedRequestResponseWithSymbols])(conditionId: ConditionIdWithProvenance): R.Predicate = {
-    val (response, requestIndex) = history.zipWithIndex.find(_._1.requestId === conditionId.provenance).get
-    val endpoint                 = schema.endpoint(response.request.endpointId)
-    val sPredicate               = endpoint.conditions(conditionId.conditionId)
-    val rPredicate               = convertPredicate(history, requestIndex, sPredicate)
-    rPredicate
-  }
-
-  private def convertPredicate(history: List[ValidatedRequestResponseWithSymbols], requestIndex: Int, predicate: S.Predicate): R.Predicate =
-    SymbolConverter.convertPredicate(S, R)(predicate)(convertOwnSymbol(history, requestIndex, _))
-
-  private def convertSymbol(history: List[ValidatedRequestResponseWithSymbols], requestIndex: Int, symbol: S.Symbol): R.Symbol =
-    SymbolConverter.convertSymbol(S, R)(symbol)(convertOwnSymbol(history, requestIndex, _))
-
-  private def convertOwnSymbol(history: List[ValidatedRequestResponseWithSymbols], requestIndex: Int, symbol: S.OwnSymbols): Id[R.Symbol] =
-    symbol match {
-      case S.ResponseBody    => R.ResponseBody(requestIndex).pure[Id]
-      case S.StatusCode      => R.StatusCode(requestIndex).pure[Id]
-      case S.Parameter(name) => R.Literal(history(requestIndex).request.parameterValues(name)).pure[Id]
-      case S.Endpoint(endpointId, parameters, evaluateAfterExecution) =>
-        // This part is far from perfect, but good enough to run our test DSL for 'ResponseValidatorSpec'.
-        // Shortcoming: we resolve endpoints differently here to how they're actually resolved by the ResponseValidator
-        // (the ResponseValidator resolves them much better!). Here we're matching requests by symbols, whereas in
-        // ResponseValidator we're matching requests by resolved runtime values. For example, if we have the precondition
-        // 'requires(foo(bar() == 42) == "buz")', and the symbolic requests 'foo(true)' and 'foo(false)', neither of
-        // these will match here, whereas at runtime one will. However, our tests only use 'S.Literal' as request params
-        // as of writing this, so we won't notice this shortcoming (and the approach below is simpler!).
-        val resolvedParameters =
-          parameters.view.mapValues(
-            convertSymbol(
-              history,
-              requestIndex,
-              _
-            )
-          ).toMap
-
-        val historyWithIndex = history.zipWithIndex
-
-        val scope =
-          if (evaluateAfterExecution)
-            historyWithIndex.drop(requestIndex)
-          else
-            historyWithIndex.take(requestIndex).reverse
-
-        val resolvedRequest      = EndpointRequestSymbolic(endpointId, resolvedParameters)
-        val resolvedRequestIndex = scope
-          .find(_._1.requestSymbolic === resolvedRequest)
-          .getOrElse(throw new Exception(
-            "AutoSpec resolved a condition successfully, but the test framework was unable to determine which request " +
-              "AutoSpec resolved an endpoint reference to (the test framework isn't as good as AutoSpec at doing this!)."
-          ))
-          ._2
-
-        R.ResponseBody(resolvedRequestIndex).pure[Id]
-    }
+  private def convertToIndexedSymbol(
+    getResponse: EndpointRequestId => EndpointRequestIndex,
+    symbol: RE.Predicate
+  ): Id[RI.Predicate] =
+    SymbolConverter
+      .convertPredicate[Id, RE.type, RI.type](RE, RI)(symbol) {
+          case RE.ResponseBody(requestId) => RI.ResponseBody(getResponse(requestId))
+          case RE.StatusCode(requestId)   => RI.StatusCode(getResponse(requestId))
+        }
 }

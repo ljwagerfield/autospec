@@ -1,7 +1,7 @@
 package autospec.runtime
 
 import cats.kernel.Eq
-import autospec.RuntimeSymbols._
+import autospec.RuntimeSymbolsIndexed._
 import autospec.schema.{EndpointId, EndpointParameterName}
 
 case class EndpointRequestSymbolic(endpointId: EndpointId, parameterValues: scala.collection.immutable.Map[EndpointParameterName, Symbol]) {

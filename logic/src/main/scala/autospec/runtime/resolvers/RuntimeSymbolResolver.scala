@@ -1,28 +1,48 @@
 package autospec.runtime.resolvers
 
+import autospec.RuntimeSymbolsLike
+import autospec.{RuntimeSymbolsExecuted => RE}
+import autospec.{RuntimeSymbolsIndexed => RI}
 import cats.Id
 import cats.data.Chain
 import io.circe.Json
-import autospec.RuntimeSymbols
-import autospec.RuntimeSymbols._
-import autospec.runtime.EndpointResponse
+import autospec.runtime.{EndpointRequestId, EndpointRequestIndex, EndpointResponse}
 
 object RuntimeSymbolResolver {
-  def resolveSymbol(symbol: Symbol, history: Chain[EndpointResponse]): Json =
+  private val resolveByIndex =
+    (history: Chain[EndpointResponse]) => (idx: EndpointRequestIndex) => history.get(idx.index).get
+
+  def resolveSymbol(symbol: RI.Symbol, history: Chain[EndpointResponse]): Json =
+    resolveSymbol[RI.type, EndpointRequestIndex](RI)(symbol, convertToBaseSymbolRI(resolveByIndex(history)))
+
+  def resolvePredicate(symbol: RI.Predicate, history: Chain[EndpointResponse]): Boolean =
+    resolvePredicate[RI.type, EndpointRequestIndex](RI)(symbol, convertToBaseSymbolRI(resolveByIndex(history)))
+
+  def resolveSymbol(symbol: RE.Symbol, resolve: EndpointRequestId => EndpointResponse): Json =
+    resolveSymbol[RE.type, EndpointRequestId](RE)(symbol, convertToBaseSymbolRE(resolve))
+
+  def resolvePredicate(symbol: RE.Predicate, resolve: EndpointRequestId => EndpointResponse): Boolean =
+    resolvePredicate[RE.type, EndpointRequestId](RE)(symbol, convertToBaseSymbolRE(resolve))
+
+  private def resolveSymbol[A <: RuntimeSymbolsLike[B], B](family: A)(symbol: family.Symbol, resolve: family.OwnSymbols => Json): Json =
     BaseSymbolResolver.resolveSymbol(
-      BaseSymbolResolver.convertToBaseSymbol[Id, RuntimeSymbols.type](RuntimeSymbols)(symbol)(convertToBaseSymbol(history))
+      BaseSymbolResolver.convertToBaseSymbol[Id, A](family)(symbol)(resolve)
     )
 
-  def resolvePredicate(predicate: Predicate, history: Chain[EndpointResponse]): Boolean =
+  private def resolvePredicate[A <: RuntimeSymbolsLike[B], B](family: A)(predicate: family.Predicate, resolve: family.OwnSymbols => Json): Boolean =
     BaseSymbolResolver.resolvePredicate(
-      BaseSymbolResolver.convertToBasePredicate[Id, RuntimeSymbols.type](RuntimeSymbols)(predicate)(convertToBaseSymbol(history))
+      BaseSymbolResolver.convertToBasePredicate[Id, A](family)(predicate)(resolve)
     )
 
-  def convertToBaseSymbol(history: Chain[EndpointResponse])(symbol: OwnSymbols): Json = {
-    val responseAt = (requestIndex: Int) => history.get(history.size - (requestIndex + 1)).get
+  private def convertToBaseSymbolRE(resolve: EndpointRequestId => EndpointResponse)(symbol: RE.OwnSymbols): Json =
     symbol match {
-      case StatusCode(requestIndex)   => Json.fromInt(responseAt(requestIndex).status)
-      case ResponseBody(requestIndex) => responseAt(requestIndex).body
+      case RE.StatusCode(requestIndex)   => Json.fromInt(resolve(requestIndex).status)
+      case RE.ResponseBody(requestIndex) => resolve(requestIndex).body
     }
-  }
+
+  private def convertToBaseSymbolRI(resolve: EndpointRequestIndex => EndpointResponse)(symbol: RI.OwnSymbols): Json =
+    symbol match {
+      case RI.StatusCode(requestIndex)   => Json.fromInt(resolve(requestIndex).status)
+      case RI.ResponseBody(requestIndex) => resolve(requestIndex).body
+    }
 }

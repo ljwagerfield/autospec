@@ -1,9 +1,9 @@
 package autospec.runtime
 
-import autospec.runtime.ConditionStatus.ResolvedConditionStatus
 import autospec.schema.ConditionIdWithProvenance
+import autospec.{RuntimeSymbolsExecuted => R}
 
 case class ResponseValidationResult(
-  resolvedConditions: Map[ConditionIdWithProvenance, ResolvedConditionStatus],
+  resolvedConditions: Map[ConditionIdWithProvenance, (ConditionStatus, R.Predicate)],
   state: ResponseValidationState
 )

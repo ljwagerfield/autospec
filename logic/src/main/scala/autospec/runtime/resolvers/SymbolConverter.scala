@@ -36,7 +36,7 @@ object SymbolConverter {
     F[_]: Applicative,
     A <: CommonSymbols,
     B <: CommonSymbols
-  ](a: A, b: B)(symbol: a.Symbol)(convert: a.OwnSymbols => F[b.Symbol]): F[b.Predicate] = {
+  ](a: A, b: B)(symbol: a.Predicate)(convert: a.OwnSymbols => F[b.Symbol]): F[b.Predicate] = {
     val convertSym  = convertSymbol(a, b)(_: a.Symbol)(convert)
     val convertPred = convertPredicate(a, b)(_: a.Predicate)(convert)
     symbol match {

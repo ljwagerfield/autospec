@@ -1,7 +1,7 @@
 package autospec.runtime
 
-import autospec.runtime.ConditionStatus.ResolvedConditionStatus
 import autospec.schema.ConditionIdWithProvenance
+import autospec.{RuntimeSymbolsExecuted => RE}
 
 case class ValidatedRequestResponseWithSymbols(
     validatedRequestResponse: ValidatedRequestResponse,
@@ -11,6 +11,6 @@ case class ValidatedRequestResponseWithSymbols(
   def requestId: EndpointRequestId = validatedRequestResponse.requestId
   def response: EndpointResponse   = validatedRequestResponse.response
   def isFailed: Boolean            = validatedRequestResponse.isFailed
-  def resolvedConditions: Map[ConditionIdWithProvenance, ResolvedConditionStatus] =
+  def resolvedConditions: Map[ConditionIdWithProvenance, (ConditionStatus, RE.Predicate)] =
     validatedRequestResponse.resolvedConditions
 }

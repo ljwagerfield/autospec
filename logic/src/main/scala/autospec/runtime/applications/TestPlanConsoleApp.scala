@@ -1,11 +1,11 @@
 package autospec.runtime.applications
 
+import autospec.runtime.ConditionStatus.{Failed, Passed}
 import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
 import playground.ValidationStreamFromTestPlan
-import autospec.runtime.ConditionStatus.{Failed, Passed}
 import autospec.runtime._
 import autospec.schema.ApplicationSchema
 
@@ -40,7 +40,7 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
 
         println(s"${color(isTestPathFailed)}    $index: ${printer.print(request, index)}")
         conditions.foreach { case (conditionId, predicate) =>
-          val (icon, color)   = allConditions.get(conditionId.withProvenance(result.requestId)) match {
+          val (icon, color)   = allConditions.get(conditionId.withProvenance(result.requestId)).map(_._1) match {
             case None         => "?" -> Console.YELLOW
             case Some(Failed) => "✖" -> Console.RED
             case Some(Passed) => "✔" -> Console.GREEN
@@ -61,7 +61,7 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
       println()
     }
 
-    val failureCount = testResults.values.toList.flatMap(_.toList).flatMap(_.resolvedConditions.values.toList).count(_.isFailed)
+    val failureCount = testResults.values.toList.flatMap(_.toList).flatMap(_.resolvedConditions.values.toList).count(_._1.isFailed)
 
     if (failureCount === 0)
       print(s"${color(false)}All tests passed.")

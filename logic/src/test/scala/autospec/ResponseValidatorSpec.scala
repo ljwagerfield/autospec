@@ -1,7 +1,7 @@
 package autospec
 
-import autospec.RuntimeSymbols.Predicate._
-import autospec.RuntimeSymbols._
+import autospec.RuntimeSymbolsIndexed.Predicate._
+import autospec.RuntimeSymbolsIndexed._
 import autospec.SchemaSymbols.{Predicate => SP}
 import autospec.runtime.EndpointRequestSymbolic
 import autospec.schema.{EndpointDefinition, EndpointId, EndpointParameterName}
@@ -370,6 +370,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         EndpointRequestSymbolic(EndpointId("count"), SMap.empty) -> checks(
         ),
         EndpointRequestSymbolic(EndpointId("getByIndex"), SMap(EndpointParameterName("value") -> Literal(-2))) -> checks(
+          Equals(ResponseBody(5),ResponseBody(2))
         ),
       )
     }

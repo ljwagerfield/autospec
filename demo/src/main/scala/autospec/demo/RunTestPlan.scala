@@ -6,7 +6,7 @@ import cats.implicits._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler
-import autospec.RuntimeSymbols
+import autospec.RuntimeSymbolsIndexed
 import autospec.demo.RestApiSchema._
 import autospec.runtime.applications.TestPlanConsoleApp
 import autospec.runtime.{EndpointRequestSymbolic, TestPlan, TestPlanId}
@@ -28,7 +28,7 @@ object RunTestPlan extends IOApp {
         EndpointRequestSymbolic(
           EndpointId("delete"),
           SMap(
-            EndpointParameterName("value") -> RuntimeSymbols.Literal(Json.fromInt(42))
+            EndpointParameterName("value") -> RuntimeSymbolsIndexed.Literal(Json.fromInt(42))
           )
         ),
         EndpointRequestSymbolic(

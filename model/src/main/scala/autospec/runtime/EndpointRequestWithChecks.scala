@@ -1,5 +1,5 @@
 package autospec.runtime
 
-import autospec.RuntimeSymbols.Predicate
+import autospec.RuntimeSymbolsIndexed.Predicate
 
 case class EndpointRequestWithChecks(request: EndpointRequestSymbolic, checks: Set[Predicate])

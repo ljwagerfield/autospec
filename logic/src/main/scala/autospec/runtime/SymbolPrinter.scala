@@ -1,13 +1,13 @@
 package autospec.runtime
 
 import cats.implicits._
-import autospec.RuntimeSymbols.{ResponseBody, StatusCode}
-import autospec.{CommonSymbols, RuntimeSymbols => R, SchemaSymbols => S}
+import autospec.RuntimeSymbolsIndexed.{ResponseBody, StatusCode}
+import autospec.{CommonSymbols, RuntimeSymbolsIndexed => R, SchemaSymbols => S}
 
 trait SymbolPrinter {
   def print(symbol: S.Symbol): String
-  def print(symbol: R.Symbol, currentRequestIndex: Int): String
-  def print(request: EndpointRequestSymbolic, currentRequestIndex: Int): String
+  def print(symbol: R.Symbol, currentRequest: EndpointRequestIndex): String
+  def print(request: EndpointRequestSymbolic, currentRequest: EndpointRequestIndex): String
 }
 
 object ScalaSymbolPrinter extends SymbolPrinter {
@@ -29,10 +29,10 @@ object ScalaSymbolPrinter extends SymbolPrinter {
     }
   }
 
-  override def print(symbol: R.Symbol, currentRequestIndex: Int): String =
+  override def print(symbol: R.Symbol, currentRequest: EndpointRequestIndex): String =
     common(R)(symbol) {
-      case ResponseBody(requestIndex) => if (requestIndex === currentRequestIndex) "body" else s"bodyAt($requestIndex)"
-      case StatusCode(requestIndex)   => if (requestIndex === currentRequestIndex) "status" else s"statusAt($requestIndex)"
+      case ResponseBody(requestIndex) => if (requestIndex === currentRequest) "body" else s"bodyAt($requestIndex)"
+      case StatusCode(requestIndex)   => if (requestIndex === currentRequest) "status" else s"statusAt($requestIndex)"
     }
 
   private def common(family: CommonSymbols)(symbol: family.Symbol)(specialized: family.OwnSymbols => String): String = {
@@ -61,8 +61,8 @@ object ScalaSymbolPrinter extends SymbolPrinter {
     }
   }
 
-  override def print(request: EndpointRequestSymbolic, currentRequestIndex: Int): String =
-    s"${request.endpointId.value}(${request.parameterValues.toList.map(x => s"${x._1.value} = ${print(x._2, currentRequestIndex)}").mkString(", ")})"
+  override def print(request: EndpointRequestSymbolic, currentRequest: EndpointRequestIndex): String =
+    s"${request.endpointId.value}(${request.parameterValues.toList.map(x => s"${x._1.value} = ${print(x._2, currentRequest)}").mkString(", ")})"
 
   private def wrapParenthesis(family: CommonSymbols)(value: String, left: family.Symbol, right: family.Symbol): String = {
     val leftIsPred =

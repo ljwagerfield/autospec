@@ -2,7 +2,7 @@ package autospec
 
 import cats.data.NonEmptyList
 import org.scalactic.source
-import autospec.RuntimeSymbols._
+import autospec.RuntimeSymbolsIndexed._
 import autospec.runtime._
 import autospec.schema.{ApiDefinition, ApiId, ApplicationSchema, EndpointDefinition, HttpMethod}
 
@@ -12,8 +12,8 @@ abstract class ResponseValidatorSpecBase extends BaseSpec {
   val path: String                 = "/" // Path not important for ResponseValidator, so we can set all to the same.
   val method: HttpMethod           = HttpMethod.Get // Method not important for ResponseValidator, so we can set all to the same.
 
-  def checks(expected: Predicate*)(actual: (TestPathRequestIndex, EndpointRequestSymbolic, Set[Predicate]))(implicit pos: source.Position): Unit = {
-    val (requestId, request, actualConditions) = actual
+  def checks(expected: Predicate*)(actual: (EndpointRequestIndex, EndpointRequestSymbolic, Set[Predicate]))(implicit pos: source.Position): Unit = {
+    val (requestIndex, request, actualConditions) = actual
     val expectedConditions = expected.toSet
     val missing            = expectedConditions -- actualConditions
     val unexpected         = actualConditions -- expectedConditions
@@ -21,8 +21,8 @@ abstract class ResponseValidatorSpecBase extends BaseSpec {
     if (missing.nonEmpty || unexpected.nonEmpty) {
       val analysis = new StringBuilder()
 
-      analysis.append(s"Request:       #${requestId.requestIndex}\n")
-      analysis.append(s"Signature:     ${ScalaSymbolPrinter.print(request, requestId.requestIndex)}\n")
+      analysis.append(s"Request:       #${requestIndex.index}\n")
+      analysis.append(s"Signature:     ${ScalaSymbolPrinter.print(request, requestIndex)}\n")
 
       NonEmptyList.fromList(unexpected.toList).foreach { unexpected =>
         analysis.append(s"Not in Spec:   ${unexpected.head}\n")
@@ -44,31 +44,29 @@ abstract class ResponseValidatorSpecBase extends BaseSpec {
     }
   }
 
-  def testInlineSpec(endpoints: EndpointDefinition*)(requests: (EndpointRequestSymbolic, ((TestPathRequestIndex, EndpointRequestSymbolic, Set[Predicate])) => Unit)*): Unit = {
+  def testInlineSpec(endpoints: EndpointDefinition*)(requests: (EndpointRequestSymbolic, ((EndpointRequestIndex, EndpointRequestSymbolic, Set[Predicate])) => Unit)*): Unit = {
     implicit val a: ApplicationSchema = ApplicationSchema(apiDefinition :: Nil, endpoints.toList)
 
     test(requests:_*)
   }
 
-  def test(requests: (EndpointRequestSymbolic, ((TestPathRequestIndex, EndpointRequestSymbolic, Set[Predicate])) => Unit)*)(implicit schema: ApplicationSchema): Unit = {
-    val testPathId = TestPlanId("example-test")
-
+  def test(requests: (EndpointRequestSymbolic, ((EndpointRequestIndex, EndpointRequestSymbolic, Set[Predicate])) => Unit)*)(implicit schema: ApplicationSchema): Unit = {
     val conditions = requests
       .zipWithIndex
       .map { case ((_, predicates), requestIndex) =>
-        TestPathRequestIndex(testPathId, requestIndex) -> predicates
+        EndpointRequestIndex(requestIndex.toLong) -> predicates
       }
       .toMap
 
     val testPath = requests.map(_._1).toList
     val testPlan = ResponseValidatorDebugger.generateTestPlan(schema, testPath)
 
-    testPlan.zipWithIndex.foreach { case (request, requestIndex) =>
-      val requestId = TestPathRequestIndex(testPathId, requestIndex)
-      val actual    = request.checks
-      val expected  = conditions(requestId)
+    testPlan.zipWithIndex.foreach { case (request, index) =>
+      val requestIndex = EndpointRequestIndex(index.toLong)
+      val actual       = request.checks
+      val expected     = conditions(requestIndex)
 
-      expected((requestId, request.request, actual))
+      expected((requestIndex, request.request, actual))
     }
   }
 }

@@ -50,7 +50,7 @@ class GeneratorConsoleApp(implicit scheduler: Scheduler) {
           else
             Some(state.resolve(condition.provenance).fold("[from earlier request]")(idx => s"[from request #$idx]"))
 
-        val (icon, color) = status match {
+        val (icon, color) = status._1 match {
           case Failed => "✖" -> Console.RED
           case Passed => "✔" -> Console.GREEN
         }

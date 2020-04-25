@@ -1,24 +1,24 @@
 package autospec.runtime
 
 import alleycats.std.all._
+import autospec.common.FunctorExtensions._
+import autospec.runtime.ConditionStatus.{Failed, Passed}
+import autospec.runtime.resolvers.{RuntimeSymbolResolver, SymbolConverter}
+import autospec.schema.SymbolExtensions._
+import autospec.schema.{ApplicationSchema, ConditionIdWithState}
+import autospec.{RuntimeSymbolsExecuted => RE, SchemaSymbols => S}
 import cats.data.Chain
 import cats.implicits._
 import fs2.Stream
 import io.circe.Json
 import monix.eval.Task
 import playground.EndpointRequestResponse
-import autospec.common.FunctorExtensions._
-import autospec.runtime.ConditionStatus.{Failed, Passed, ResolvedConditionStatus, Unresolvable}
-import autospec.runtime.resolvers.BaseSymbolResolver
-import autospec.schema.SymbolExtensions._
-import autospec.schema.{ApplicationSchema, ConditionIdWithState}
-import autospec.{SchemaSymbols => S}
 
 import scala.collection.immutable.{Map => ScalaMap}
 
 object ResponseValidator {
   /**
-   * Streaming alternative of the online algorithm (this function encapsulates state management).
+   * Streaming alternative of the online algorithm below.
    */
   def stream[A](
     schema: ApplicationSchema,
@@ -65,6 +65,7 @@ object ResponseValidator {
         val earliestDependency    = findEarliestDependency(
           schema,
           reverseLookup,
+          getResponse(_).response,
           requestResponse,
           predicate
         )
@@ -82,7 +83,6 @@ object ResponseValidator {
     val deferredConditions = state.deferredConditions.getOrElse(request, Set.empty).toList
     val allConditions      = ownConditions ++ deferredConditions.map(x => x -> schema.endpoint(x.conditionId.endpointId).conditions(x.conditionId)).toMap
     val noForwardLookup    = (_: EndpointRequest) => None: Option[EndpointRequestResponse]
-
 
     val nextMutatingRequestId =
       if (endpoint.isMutating)
@@ -106,6 +106,7 @@ object ResponseValidator {
               schema,
               reverseLookup,
               forwardLookup,
+              getResponse(_).response,
               response,
               predicate
             )
@@ -116,12 +117,16 @@ object ResponseValidator {
           }
         }
 
-    val (deferred, processed) =
+    val (deferred, processedOpts) =
       conditions.map {
-        case (condition, Right(true))   => condition -> Right(Passed)
-        case (condition, Right(false))  => condition -> Right(Failed)
-        case (condition, Left(request)) => condition -> request.filterNot(_ => condition.isPrecondition).toLeft(Unresolvable)
+        case (condition, Right(true  -> predicate))  => condition -> Right(Some(Passed -> predicate))
+        case (condition, Right(false -> predicate))  => condition -> Right(Some(Failed -> predicate))
+        case (condition, Left(request))              => condition -> request.filterNot(_ => condition.isPrecondition).toLeft(None)
       }.toMap.partitionEither(identity)
+
+    // Drop unresolvable conditions (i.e. preconditions that depend on unresolved requests, and thus will never appear).
+    val processed =
+      processedOpts.collect { case (key, Some(value)) => key -> value }
 
     val oldDeferred =
       if (endpoint.isMutating)
@@ -159,7 +164,7 @@ object ResponseValidator {
     )
 
     ResponseValidationResult(
-      processed.collect { case (id, state: ResolvedConditionStatus) => id.withoutState -> state },
+      processed.collect { case (id, state) => id.withoutState -> state },
       ResponseValidationState(
         newDeferred,
         nextMutatingRequestId,
@@ -172,71 +177,60 @@ object ResponseValidator {
     schema: ApplicationSchema,
     getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
     getFutureResponse: EndpointRequest => Option[EndpointRequestResponse],
+    getResponse: EndpointRequestId => EndpointResponse,
     requestResponse: EndpointRequestResponse,
     predicate: S.Predicate
-  ): Either[Option[EndpointRequest], Boolean] = {
-    val convertSymbol     = convertToBaseSymbol(schema, getPastResponse, getFutureResponse, requestResponse, _)
-    val basePredicate     = BaseSymbolResolver.convertToBasePredicate(S)(predicate)(convertSymbol)
-    val resolvedPredicate = basePredicate.map(BaseSymbolResolver.resolvePredicate)
-    resolvedPredicate
+  ): Either[Option[EndpointRequest], (Boolean, RE.Predicate)] = {
+    val convertOwnSymbols = convertToRuntimeSymbol(schema, getPastResponse, getFutureResponse, getResponse, requestResponse, _)
+    SymbolConverter
+      .convertPredicate[Either[Option[EndpointRequest], *], S.type, RE.type](S, RE)(predicate)(convertOwnSymbols)
+      .map { runtimePredicate =>
+        RuntimeSymbolResolver.resolvePredicate(runtimePredicate, getResponse) -> runtimePredicate
+      }
   }
 
   private def resolveSymbol(
     schema: ApplicationSchema,
     getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
     getFutureResponse: EndpointRequest => Option[EndpointRequestResponse],
+    getResponse: EndpointRequestId => EndpointResponse,
     requestResponse: EndpointRequestResponse,
     symbol: S.Symbol
   ): Either[Option[EndpointRequest], Json] = {
-    val convertSymbol  = convertToBaseSymbol(schema, getPastResponse, getFutureResponse, requestResponse, _)
-    val baseSymbol     = BaseSymbolResolver.convertToBaseSymbol(S)(symbol)(convertSymbol)
-    val resolvedSymbol = baseSymbol.map(BaseSymbolResolver.resolveSymbol)
-    resolvedSymbol
+    val convertOwnSymbols = convertToRuntimeSymbol(schema, getPastResponse, getFutureResponse, getResponse, requestResponse, _)
+    SymbolConverter
+      .convertSymbol[Either[Option[EndpointRequest], *], S.type, RE.type](S, RE)(symbol)(convertOwnSymbols)
+      .map(RuntimeSymbolResolver.resolveSymbol(_, getResponse))
   }
 
-  private def findEarliestDependency(
-    schema: ApplicationSchema,
-    getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
-    requestResponse: EndpointRequestResponse,
-    predicate: S.Predicate
-  ): EndpointRequestId = {
-    val reverseLookups =
-      predicate.toList.collect { case x: S.Endpoint if !x.evaluateAfterExecution => x }
-
-    val reverseLookupResolutions =
-      reverseLookups.map(resolveEndpointReference(schema, getPastResponse, _ => None, requestResponse, _))
-
-    val reverseLookupResponses =
-      reverseLookupResolutions.flatMap(_.toOption)
-
-    (requestResponse.requestId :: reverseLookupResponses.map(_.requestId)).min
-  }
-
-  private def convertToBaseSymbol(
+  private def convertToRuntimeSymbol(
     schema: ApplicationSchema,
     getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
     getFutureResponse: EndpointRequest => Option[EndpointRequestResponse],
+    getResponse: EndpointRequestId => EndpointResponse,
     requestResponse: EndpointRequestResponse,
     symbol: S.OwnSymbols
-  ): Either[Option[EndpointRequest], Json] =
+  ): Either[Option[EndpointRequest], RE.Symbol] =
     symbol match {
-      case S.ResponseBody    => requestResponse.response.body.asRight
-      case S.StatusCode      => Json.fromInt(requestResponse.response.status).asRight
-      case S.Parameter(name) => requestResponse.request.parameterValues(name).asRight
+      case S.ResponseBody    => RE.ResponseBody(requestResponse.requestId).asRight
+      case S.StatusCode      => RE.StatusCode(requestResponse.requestId).asRight
+      case S.Parameter(name) => RE.Literal(requestResponse.request.parameterValues(name)).asRight
       case endpoint: S.Endpoint =>
         resolveEndpointReference(
           schema,
           getPastResponse,
           getFutureResponse,
+          getResponse,
           requestResponse,
           endpoint
-        ).map(_.response.body)
+        ).map(x => RE.ResponseBody(x.requestId))
     }
 
   private def resolveEndpointReference(
     schema: ApplicationSchema,
     getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
     getFutureResponse: EndpointRequest => Option[EndpointRequestResponse],
+    getResponse: EndpointRequestId => EndpointResponse,
     requestResponse: EndpointRequestResponse,
     endpoint: S.Endpoint
   ): Either[Option[EndpointRequest], EndpointRequestResponse] = {
@@ -246,6 +240,7 @@ object ResponseValidator {
           schema,
           getPastResponse,
           getFutureResponse,
+          getResponse,
           requestResponse,
           _
         )
@@ -266,5 +261,24 @@ object ResponseValidator {
       request             = EndpointRequest(endpoint.endpointId, resolvedParameters)
       response           <- responseF(request)
     } yield response
+  }
+
+  private def findEarliestDependency(
+    schema: ApplicationSchema,
+    getPastResponse: EndpointRequest => Option[EndpointRequestResponse],
+    getResponse: EndpointRequestId => EndpointResponse,
+    requestResponse: EndpointRequestResponse,
+    predicate: S.Predicate
+  ): EndpointRequestId = {
+    val reverseLookups =
+      predicate.toList.collect { case x: S.Endpoint if !x.evaluateAfterExecution => x }
+
+    val reverseLookupResolutions =
+      reverseLookups.map(resolveEndpointReference(schema, getPastResponse, _ => None, getResponse, requestResponse, _))
+
+    val reverseLookupResponses =
+      reverseLookupResolutions.flatMap(_.toOption)
+
+    (requestResponse.requestId :: reverseLookupResponses.map(_.requestId)).min
   }
 }

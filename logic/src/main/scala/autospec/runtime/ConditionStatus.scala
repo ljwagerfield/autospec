@@ -1,19 +1,15 @@
 package autospec.runtime
 
-import autospec.runtime.ConditionStatus.{Failed, Passed, Unresolvable}
+import autospec.runtime.ConditionStatus.{Failed, Passed}
 
 sealed trait ConditionStatus extends Product with Serializable {
   def isFailed: Boolean = this match {
-    case Failed                => true
-    case Unresolvable | Passed => false
+    case Failed => true
+    case Passed => false
   }
 }
 
 object ConditionStatus {
-  sealed trait ResolvedConditionStatus extends ConditionStatus
-
-  case object Passed extends ResolvedConditionStatus
-  case object Failed extends ResolvedConditionStatus
-
-  case object Unresolvable extends ConditionStatus
+  case object Passed extends ConditionStatus
+  case object Failed extends ConditionStatus
 }

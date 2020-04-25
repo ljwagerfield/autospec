@@ -46,7 +46,7 @@ object ClientMacros {
                 "Enclosing method contains a parameter whose type is not supported."
               )
 
-          q"EndpointParameterName(${param.name.toString}) -> RuntimeSymbols.Literal(io.circe.Json.$toJson($param))"
+          q"EndpointParameterName(${param.name.toString}) -> RuntimeSymbolsIndexed.Literal(io.circe.Json.$toJson($param))"
         }
       )
 

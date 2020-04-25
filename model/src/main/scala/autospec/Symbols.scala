@@ -1,5 +1,6 @@
 package autospec
 
+import autospec.runtime.{EndpointRequestId, EndpointRequestIndex}
 import io.circe.Json
 import autospec.schema.{EndpointId, EndpointParameterName}
 
@@ -70,11 +71,16 @@ object IntermediateSymbols extends CommonSymbols {
   case class Parameter(name: EndpointParameterName) extends ResolvedPreconditionSymbol
 }
 
-object RuntimeSymbols extends CommonSymbols {
+sealed trait RuntimeSymbolsLike[A] extends CommonSymbols {
   type OwnSymbols = RuntimeSymbol
 
   sealed trait RuntimeSymbol extends Symbol
 
-  case class ResponseBody(requestIndex: Int) extends RuntimeSymbol
-  case class StatusCode(requestIndex: Int) extends RuntimeSymbol
+  case class ResponseBody(requestRef: A) extends RuntimeSymbol
+  case class StatusCode(requestRef: A) extends RuntimeSymbol
 }
+
+object RuntimeSymbolsIndexed extends RuntimeSymbolsLike[EndpointRequestIndex]
+
+object RuntimeSymbolsExecuted extends RuntimeSymbolsLike[EndpointRequestId]
+
