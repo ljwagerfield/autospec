@@ -1,3 +1,5 @@
+import sbtghactions.Ref.Branch
+import sbtghactions.RefPredicate.Equals
 // ---------------
 // Versions
 // ---------------
@@ -16,9 +18,14 @@ val circeVersion       = "0.13.0-RC1"
 
 val compileAndTest     = "compile->compile;test->test"
 
-// Required for 'sbt githubWorkflowGenerate' to correctly infer the Scala version used throughout this project.
+// Identify scala & java versions for 'sbt githubWorkflowGenerate':
 ThisBuild / scalaVersion := scalaVersionString
 ThisBuild / githubWorkflowJavaVersions := Seq(javaVersionString)
+
+// Whitelist for branches that perform the 'publish' job:
+ThisBuild / githubWorkflowPublishTargetBranches := Seq(
+  // Equals(Branch("master")) -- Disable for now, as this will eat into our GitHub Actions minutes quota.
+)
 
 lazy val commonSettings = Seq(
   organization         := "io.projectone",
