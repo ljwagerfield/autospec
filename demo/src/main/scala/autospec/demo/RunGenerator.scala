@@ -14,7 +14,9 @@ object RunGenerator extends IOApp {
 
     Task.gather(
       List(
-        new RestApi().run(),
+        new RestApi().run()
+      ).filterNot(_ => args.contains_("--no-dev-server")) :::
+      List(
         new GeneratorConsoleApp().run(schema)
       )
     ).as(ExitCode.Success).to[IO]

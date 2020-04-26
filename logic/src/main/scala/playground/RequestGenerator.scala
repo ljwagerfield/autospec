@@ -384,5 +384,7 @@ class RequestGenerator(
         (a2, resolvedParams2) <- atoa(a, resolvedParams)
         (b2, resolvedParams3) <- btob(b, resolvedParams2)
       } yield newType(a2, b2) -> resolvedParams3
+
   }
+
 }

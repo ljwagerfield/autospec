@@ -40,7 +40,9 @@ object RunTestPlan extends IOApp {
 
     Task.gather(
       List(
-        new RestApi().run(),
+        new RestApi().run()
+      ).filterNot(_ => args.contains_("--no-dev-server")) :::
+      List(
         new TestPlanConsoleApp().run(schema, List(testPath))
       )
     ).as(ExitCode.Success).to[IO]

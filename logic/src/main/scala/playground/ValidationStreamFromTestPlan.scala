@@ -10,23 +10,23 @@ import autospec.schema.ApplicationSchema
 class ValidationStreamFromTestPlan(requestExecutor: EndpointRequestExecutor) {
 
   def apply(
-    schema: ApplicationSchema,
+    session: Session,
     path: List[EndpointRequestSymbolic]
   ): Stream[Task, ValidatedRequestResponseWithSymbols] =
     requestStream(path)
-      .through(responseStream(schema))
-      .through(validationStream(schema))
+      .through(responseStream(session))
+      .through(validationStream(session.schema))
 
   private def requestStream(path: List[EndpointRequestSymbolic]): Stream[Task, EndpointRequestSymbolic] =
     Stream.emits[Task, EndpointRequestSymbolic](path)
 
-  private def responseStream(schema: ApplicationSchema)(
+  private def responseStream(session: Session)(
     requestStream: Stream[Task, EndpointRequestSymbolic]
   ): Stream[Task, (EndpointRequestSymbolic, EndpointRequestResponse)] =
     requestStream
       .evalMapAccumulate(Chain.empty[EndpointResponse]) { (oldHistory, requestSymbolic) =>
         val request = resolveRequestSymbols(requestSymbolic, oldHistory)
-        requestExecutor.execute(schema, request).map { response =>
+        requestExecutor.execute(session, request).map { response =>
           val newHistory = oldHistory :+ response.response
           newHistory -> (requestSymbolic -> response)
         }
@@ -58,4 +58,5 @@ class ValidationStreamFromTestPlan(requestExecutor: EndpointRequestExecutor) {
         .mapValues(RuntimeSymbolResolver.resolveSymbol(_, history))
         .toMap
     )
+
 }

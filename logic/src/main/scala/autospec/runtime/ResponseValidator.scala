@@ -48,11 +48,14 @@ object ResponseValidator {
       history.findAfter(_.requestId === after, _.request === matching)
 
     def getResponseBefore(before: EndpointRequestId, upTo: Option[EndpointRequestId], matching: EndpointRequest) = {
-      require(upTo.forall(_.value < before.value))
+      require(
+        upTo.forall(_ < before),
+        s"The 'upTo' request ${upTo.fold("")(_.serialized)} must appear before the 'before' request ${before.serialized}"
+      )
       history
         .reverse
         .findAfter(_.requestId === before, _.request === matching)
-        .filter(r => upTo.forall(_.value <= r.requestId.value))
+        .filter(r => upTo.forall(_ <= r.requestId))
     }
 
     val endpoint = schema.endpoint(requestResponse.request.endpointId)
@@ -285,4 +288,5 @@ object ResponseValidator {
 
     (requestResponse.requestId :: reverseLookupResponses.map(_.requestId)).min
   }
+
 }

@@ -46,6 +46,7 @@ class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
     BlazeServerBuilder[Task]
       .bindHttp(9005, "localhost")
       .withHttpApp(httpApp)
+      .withNio2(true) // Reduces errors on process termination.
       .serve
       .compile
       .drain

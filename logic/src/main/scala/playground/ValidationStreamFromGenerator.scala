@@ -35,8 +35,9 @@ class ValidationStreamFromGenerator(
     session: Session
   )(request: RequestGeneratorResult): Task[EndpointRequestResponse] =
     for {
-      response <- requestExecutor.execute(session.schema, request.nextRequest)
+      response <- requestExecutor.execute(session, request.nextRequest)
       _        <- requestResponseRepository.saveRequestResponse(session.id, response)
       _        <- opportunitiesRepository.saveOpportunities(session.id, request.opportunities)
     } yield response
+
 }

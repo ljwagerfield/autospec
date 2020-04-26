@@ -1,22 +1,14 @@
 package autospec.runtime.applications
 
+import autospec.runtime.ConditionStatus.{Failed, Passed}
+import autospec.runtime._
+import autospec.runtime.applications.GeneratorConsoleApp.State
+import autospec.schema.ApplicationSchema
+import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
 import playground._
-import autospec.common.ULID
-import autospec.runtime.ConditionStatus.{Failed, Passed}
-import autospec.runtime.{
-  EndpointRequestExecutorImpl,
-  EndpointRequestId,
-  HttpRequestExecutor,
-  ScalaSymbolPrinter,
-  SymbolPrinter,
-  ValidatedRequestResponse
-}
-import autospec.schema.ApplicationSchema
-import cats.implicits._
-import autospec.runtime.applications.GeneratorConsoleApp.State
 
 import scala.collection.immutable.Queue
 
@@ -38,8 +30,7 @@ class GeneratorConsoleApp(implicit scheduler: Scheduler) {
         opportunitiesRepository
       )
       for {
-        sessionId <- ULID.next[Task].map(SessionId)
-        session    = Session(sessionId, schema)
+        session <- Session.newSession(schema)
         _ <- validationStream(session)
           .evalMapAccumulate(State.initial)((s, r) => processResult(schema, r, s).map(_ -> ()))
           .compile
@@ -71,9 +62,11 @@ class GeneratorConsoleApp(implicit scheduler: Scheduler) {
 
       state.add(result.requestId)
     }
+
 }
 
 object GeneratorConsoleApp {
+
   private val requestHistorySize =
     1000 // The maximum depth we expect for a deferred condition (i.e. consecutive pure calls)
 
@@ -93,9 +86,11 @@ object GeneratorConsoleApp {
 
     def resolve(request: EndpointRequestId): Option[Long] =
       recentRequests.findLast(_._1 === request).map(_._2)
+
   }
 
   private object State {
     val initial: State = State(1, Queue.empty)
   }
+
 }

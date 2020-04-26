@@ -3,32 +3,32 @@ package autospec.runtime
 import alleycats.std.all._
 import cats.implicits._
 import monix.eval.Task
-import playground.ValidationStreamFromTestPlan
-import autospec.schema.ApplicationSchema
+import playground.{Session, ValidationStreamFromTestPlan}
 
 class TestPlanExecutor(stream: ValidationStreamFromTestPlan) {
 
   def executeMany(
-    schema: ApplicationSchema,
+    session: Session,
     plans: List[TestPlan],
     haltOnFailure: Boolean
   ): Task[Map[TestPlanId, List[ValidatedRequestResponseWithSymbols]]] =
-    plans.map(x => x.id -> x).toMap.traverse(execute(schema, _, haltOnFailure))
+    plans.map(x => x.id -> x).toMap.traverse(execute(session, _, haltOnFailure))
 
   def execute(
-    schema: ApplicationSchema,
+    session: Session,
     plan: TestPlan,
     haltOnFailure: Boolean
   ): Task[List[ValidatedRequestResponseWithSymbols]] =
-    execute(schema, plan.requests.toList, haltOnFailure)
+    execute(session, plan.requests.toList, haltOnFailure)
 
   def execute(
-    schema: ApplicationSchema,
+    session: Session,
     plan: List[EndpointRequestSymbolic],
     haltOnFailure: Boolean
   ): Task[List[ValidatedRequestResponseWithSymbols]] = {
-    val source   = stream(schema, plan)
+    val source   = stream(session, plan)
     val filtered = if (haltOnFailure) source.takeThrough(!_.isFailed) else source
     filtered.compile.toList
   }
+
 }

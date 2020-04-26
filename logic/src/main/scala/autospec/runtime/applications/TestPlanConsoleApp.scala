@@ -5,7 +5,7 @@ import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
-import playground.ValidationStreamFromTestPlan
+import playground.{Session, ValidationStreamFromTestPlan}
 import autospec.runtime._
 import autospec.schema.ApplicationSchema
 
@@ -18,9 +18,10 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
       val endpointRequestExecutor = new EndpointRequestExecutorImpl(httpRequestExecutor)
       val validationStream        = new ValidationStreamFromTestPlan(endpointRequestExecutor)
       val testPathExecutor        = new TestPlanExecutor(validationStream)
-      testPathExecutor.executeMany(schema, paths, haltOnFailure = true).map { testResults =>
-        printResults(schema, paths, testResults)
-      }
+      for {
+        session     <- Session.newSession(schema)
+        testResults <- testPathExecutor.executeMany(session, paths, haltOnFailure = true)
+      } yield printResults(schema, paths, testResults)
     }
 
   private def printResults(
@@ -78,4 +79,5 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
 
     println(Console.RESET)
   }
+
 }
