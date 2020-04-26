@@ -340,10 +340,7 @@ class RequestGenerator(
   }
 
   private def endpointWeight(state: ApplicationState, endpoint: EndpointId): Int = {
-    val count =
-      state.previousOpportunities.take(maxBiasFactor).count(
-        _.possibleRequests.contains(endpoint)
-      ) // TODO: use 'contains_' instead.
+    val count      = state.previousOpportunities.take(maxBiasFactor).count(_.possibleRequests.contains(endpoint))
     val maxPenalty = maxBiasFactor + 1
 
     // Random (no biasing of less-frequently available endpoints)
