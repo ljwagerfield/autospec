@@ -5,13 +5,16 @@ import org.http4s
 import org.http4s._
 import org.http4s.headers.{`Content-Length`, `Content-Type`}
 import org.http4s.implicits._
-import autospec.runtime.EndpointRequest
+import autospec.runtime.{EndpointRequest, EndpointRequestId}
 import autospec.schema.HttpMethod._
 import autospec.schema._
 
 object HttpRequestEncoder {
 
-  def encode[F[_]](schema: ApplicationSchema, request: EndpointRequest): Request[F] = {
+  // No prefixed 'x-' as per RFC6648 Section 3 (https://tools.ietf.org/html/rfc6648#section-3)
+  private val requestIdHeaderName = "autospec-request-id"
+
+  def encode[F[_]](schema: ApplicationSchema, request: EndpointRequest, requestId: EndpointRequestId): Request[F] = {
     val endpoint = schema.endpoint(request.endpointId)
     val api      = schema.api(endpoint.apiId)
     val method = endpoint.method match {
@@ -29,15 +32,16 @@ object HttpRequestEncoder {
         .map { case (name, json) => endpoint.parameter(name) -> json }
         .groupBy { case (parameter, _) => parameter.location }
 
-    val serializedParams = params
-      .get(_: EndpointParameterLocation)
-      .toList
-      .flatten
-      .map {
-        case (parameter, json) =>
-          parameter.name.value -> serializeParameter(endpoint.id, parameter, json)
-      }
-      .toMap
+    val serializedParams =
+      params
+        .get(_: EndpointParameterLocation)
+        .toList
+        .flatten
+        .map {
+          case (parameter, json) =>
+            parameter.name.value -> serializeParameter(endpoint.id, parameter, json)
+        }
+        .toMap
 
     val (body, headersForBody) =
       params
@@ -54,8 +58,9 @@ object HttpRequestEncoder {
         }
         .getOrElse(fs2.Stream.empty -> Nil)
 
-    val headers     = serializedParams(EndpointParameterLocation.Header).toList.map(x => Header(x._1, x._2))
-    val querystring = serializedParams(EndpointParameterLocation.Querystring)
+    val requestIdHeader = List(Header(requestIdHeaderName, requestId.serialized)).filter(_ => api.addRequestIdHeader)
+    val headers         = serializedParams(EndpointParameterLocation.Header).toList.map(x => Header(x._1, x._2))
+    val querystring     = serializedParams(EndpointParameterLocation.Querystring)
     val path = serializedParams(EndpointParameterLocation.Path).foldLeft(endpoint.relativeUrl) { (path, param) =>
       val (name, value) = param
       path.replaceAllLiterally(s":$name", value)
@@ -67,7 +72,7 @@ object HttpRequestEncoder {
         .unsafeFromString(s"${api.baseUrl}$path")
         .withQueryParams(querystring),
       HttpVersion.`HTTP/1.1`,
-      Headers(headersForBody ::: headers),
+      Headers(requestIdHeader ::: headersForBody ::: headers),
       body
     )
   }

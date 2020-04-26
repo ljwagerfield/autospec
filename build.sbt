@@ -9,8 +9,8 @@ val scalaVersionString = "2.13.1" // Docker base image must match.
 val javaVersionString  = "11"     // Docker base image must match.
 val silencerVersion    = "1.4.4"
 val catsVersion        = "2.1.0"
-val http4sVersion      = "0.21.0-RC2"
-val circeVersion       = "0.13.0-RC1"
+val http4sVersion      = "0.21.1"
+val circeVersion       = "0.13.0"
 
 // ---------------
 // Common Settings
@@ -149,6 +149,6 @@ lazy val demo = (project in file("demo"))
     name := "autospec-demo",
     libraryDependencies ++= Seq(
         "ch.qos.logback" % "logback-classic"     % "1.2.3",
-        "org.http4s"    %% "http4s-blaze-server" % "0.21.0-RC2"
+        "org.http4s"    %% "http4s-blaze-server" % http4sVersion
       )
   )

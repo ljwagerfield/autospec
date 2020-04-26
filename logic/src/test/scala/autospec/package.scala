@@ -28,7 +28,8 @@ package object autospec {
       List(
         ApiDefinition(
           testApiId,
-          "http://foo"
+          "http://foo",
+          addRequestIdHeader = true
         )
       ),
       methods.toList.map { method =>

@@ -38,22 +38,22 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
       println(s"${color(false)}  ${path.id.value}:")
       val pathResult    = testResults(path.id)
       val allConditions = pathResult.flatMap(_.resolvedConditions).toMap
-      pathResult.zipWithIndex.foreach {
-        case (result, index) =>
-          val request          = result.requestSymbolic
-          val isTestPathFailed = result.isFailed
-          val conditions       = schema.endpoint(request.endpointId).conditions
+      pathResult.foreach { result =>
+        val index            = result.requestId.requestIndex.index
+        val request          = result.requestSymbolic
+        val isTestPathFailed = result.isFailed
+        val conditions       = schema.endpoint(request.endpointId).conditions
 
-          println(s"${color(isTestPathFailed)}    $index: ${printer.print(request, index)}")
-          conditions.foreach {
-            case (conditionId, predicate) =>
-              val (icon, color) = allConditions.get(conditionId.withProvenance(result.requestId)).map(_._1) match {
-                case None         => "?" -> Console.YELLOW
-                case Some(Failed) => "✖" -> Console.RED
-                case Some(Passed) => "✔" -> Console.GREEN
-              }
-              println(s"$color       $icon ${printer.print(predicate)}")
-          }
+        println(s"${color(isTestPathFailed)}    $index: ${printer.print(request, index)}")
+        conditions.foreach {
+          case (conditionId, predicate) =>
+            val (icon, color) = allConditions.get(conditionId.withProvenance(result.requestId)).map(_._1) match {
+              case None         => "?" -> Console.YELLOW
+              case Some(Failed) => "✖" -> Console.RED
+              case Some(Passed) => "✔" -> Console.GREEN
+            }
+            println(s"$color       $icon ${printer.print(predicate)}")
+        }
       }
 
       print(Console.RESET)

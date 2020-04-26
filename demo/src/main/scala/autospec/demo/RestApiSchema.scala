@@ -8,7 +8,7 @@ object RestApiSchema {
   val apiId: ApiId = ApiId("api")
 
   val schema: ApplicationSchema = ApplicationSchema(
-    ApiDefinition(apiId, "http://localhost:9005") :: Nil,
+    ApiDefinition(apiId, "http://localhost:9005", addRequestIdHeader = true) :: Nil,
     EndpointDefinition(
       EndpointId("list"),
       apiId,

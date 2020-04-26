@@ -8,9 +8,9 @@ import autospec.schema.{ApiDefinition, ApiId, ApplicationSchema, EndpointDefinit
 
 abstract class ResponseValidatorSpecBase extends BaseSpec {
   val apiId: ApiId                 = ApiId("api")
-  val apiDefinition: ApiDefinition = ApiDefinition(apiId, "foo")
-  val path: String                 = "/"            // Path not important for ResponseValidator, so we can set all to the same.
-  val method: HttpMethod           = HttpMethod.Get // Method not important for ResponseValidator, so we can set all to the same.
+  val apiDefinition: ApiDefinition = ApiDefinition(apiId, "foo", addRequestIdHeader = true)
+  val path: String                 = "/"                                             // Path not important for ResponseValidator, so we can set all to the same.
+  val method: HttpMethod           = HttpMethod.Get                                  // Method not important for ResponseValidator, so we can set all to the same.
 
   def checks(
     expected: Predicate*
