@@ -11,7 +11,7 @@
         <appender-ref ref="STDOUT" />
     </appender>
 
-    <logger name="org.http4s.blaze.channel.nio1" level="WARN" />
+    <logger name="org.http4s.blaze.channel" level="WARN" />
     <logger name="org.http4s.server.blaze" level="WARN" />
 
     <root level="INFO">

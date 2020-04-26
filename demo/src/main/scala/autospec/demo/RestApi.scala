@@ -1,7 +1,9 @@
 package autospec.demo
 
 import cats.effect._
+import cats.effect.concurrent.Ref
 import cats.implicits._
+import fs2.concurrent.Signal
 import io.circe.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler
@@ -38,7 +40,7 @@ class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
 
   }
 
-  def run(): Task[Unit] = {
+  def run(exitSignal: Signal[Task, Boolean]): Task[Unit] = {
     val services = myService // <+> fooService <+> barService
 
     val httpApp = Router("/" -> services).orNotFound
@@ -47,7 +49,7 @@ class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
       .bindHttp(9005, "localhost")
       .withHttpApp(httpApp)
       .withNio2(true) // Reduces errors on process termination.
-      .serve
+      .serveWhile(exitSignal, Ref.unsafe(ExitCode.Success))
       .compile
       .drain
   }

@@ -1,25 +1,9 @@
 package autospec.demo
 
-import cats.effect._
-import cats.implicits._
-import monix.eval.Task
-import monix.execution.Scheduler
 import autospec.demo.RestApiSchema._
 import autospec.runtime.applications.GeneratorConsoleApp
+import monix.eval.Task
 
-object RunGenerator extends IOApp {
-
-  def run(args: List[String]): IO[ExitCode] = {
-    implicit val scheduler: Scheduler = Scheduler.traced
-
-    Task.gather(
-      List(
-        new RestApi().run()
-      ).filterNot(_ => args.contains_("--no-dev-server")) :::
-      List(
-        new GeneratorConsoleApp().run(schema)
-      )
-    ).as(ExitCode.Success).to[IO]
-  }
-
+object RunGenerator extends RunWithApi {
+  override protected def runAutoSpec(): Task[Unit] = new GeneratorConsoleApp().run(schema)
 }
