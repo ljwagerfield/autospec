@@ -1,8 +1,7 @@
-package playground
+package autospec.runtime
 
-import monix.eval.Task
-import autospec.runtime.{EndpointRequestExecutor, ResponseValidator, ValidatedRequestResponse}
 import fs2.Stream
+import monix.eval.Task
 
 class ValidationStreamFromGenerator(
   requestGenerator: RequestGenerator,

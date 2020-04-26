@@ -1,13 +1,12 @@
-package playground
+package autospec.runtime
 
+import autospec.schema.HttpMethod._
+import autospec.schema._
 import io.circe.Json
 import org.http4s
 import org.http4s._
 import org.http4s.headers.{`Content-Length`, `Content-Type`}
 import org.http4s.implicits._
-import autospec.runtime.{EndpointRequest, EndpointRequestId}
-import autospec.schema.HttpMethod._
-import autospec.schema._
 
 object HttpRequestEncoder {
 

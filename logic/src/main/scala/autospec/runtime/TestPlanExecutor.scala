@@ -3,7 +3,6 @@ package autospec.runtime
 import alleycats.std.all._
 import cats.implicits._
 import monix.eval.Task
-import playground.{Session, ValidationStreamFromTestPlan}
 
 class TestPlanExecutor(stream: ValidationStreamFromTestPlan) {
 

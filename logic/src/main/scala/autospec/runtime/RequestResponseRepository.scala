@@ -1,9 +1,8 @@
-package playground
+package autospec.runtime
 
-import autospec.runtime.SessionId
+import autospec.schema.EndpointId
 import cats.effect.concurrent.Ref
 import monix.eval.Task
-import autospec.schema.EndpointId
 
 class RequestResponseRepository {
 

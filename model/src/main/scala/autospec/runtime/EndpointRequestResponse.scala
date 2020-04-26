@@ -1,6 +1,4 @@
-package playground
-
-import autospec.runtime.{EndpointRequest, EndpointRequestId, EndpointResponse}
+package autospec.runtime
 
 case class EndpointRequestResponse(
   requestId: EndpointRequestId,

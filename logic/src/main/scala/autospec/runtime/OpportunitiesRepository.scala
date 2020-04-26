@@ -1,6 +1,5 @@
-package playground
+package autospec.runtime
 
-import autospec.runtime.SessionId
 import cats.effect.concurrent.Ref
 import monix.eval.Task
 

@@ -1,7 +1,6 @@
 package autospec.runtime
 
 import monix.eval.Task
-import playground.{EndpointRequestResponse, HttpRequestEncoder, Session}
 
 trait EndpointRequestExecutor {
   def execute(session: Session, request: EndpointRequest): Task[EndpointRequestResponse]

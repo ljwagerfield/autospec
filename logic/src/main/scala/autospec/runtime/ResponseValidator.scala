@@ -5,40 +5,48 @@ import autospec.common.FunctorExtensions._
 import autospec.runtime.ConditionStatus.{Failed, Passed}
 import autospec.runtime.resolvers.{RuntimeSymbolResolver, SymbolConverter}
 import autospec.schema.SymbolExtensions._
-import autospec.schema.{ApplicationSchema, ConditionIdWithState}
+import autospec.schema.{ApplicationSchema, ConditionIdWithProvenance, ConditionIdWithState}
 import autospec.{RuntimeSymbolsExecuted => RE, SchemaSymbols => S}
 import cats.data.Chain
 import cats.implicits._
 import fs2.Stream
 import io.circe.Json
 import monix.eval.Task
-import playground.EndpointRequestResponse
 
 import scala.collection.immutable.{Map => ScalaMap}
 
 object ResponseValidator {
+  private val initialState: State = State(Map.empty, None, Chain.empty)
 
-  /**
-    * Streaming alternative of the online algorithm below.
-    */
+  private case class Result(
+    resolvedConditions: Map[ConditionIdWithProvenance, (ConditionStatus, RE.Predicate)],
+    state: State
+  )
+
+  private case class State(
+    deferredConditions: Map[EndpointRequest, Set[ConditionIdWithState]],
+    lastMutatingRequestId: Option[EndpointRequestId],
+    history: Chain[EndpointRequestResponse]
+  )
+
   def stream[A](schema: ApplicationSchema, responseStream: Stream[Task, A])(
     f: A => EndpointRequestResponse
   ): Stream[Task, (A, ValidatedRequestResponse)] =
     responseStream
-      .mapAccumulate(ResponseValidationState.initial) { (oldState, response) =>
-        val ResponseValidationResult(result, newState) = validate(schema, oldState, f(response))
+      .mapAccumulate(initialState) { (oldState, response) =>
+        val Result(result, newState) = validate(schema, oldState, f(response))
         (newState, (response, ValidatedRequestResponse(f(response), result)))
       }
       .map(_._2)
 
   /**
-    * Online algorithm for validating server responses.
+    * An online algorithm for validating server responses.
     */
-  def validate(
+  private def validate(
     schema: ApplicationSchema,
-    state: ResponseValidationState,
+    state: State,
     requestResponse: EndpointRequestResponse
-  ): ResponseValidationResult = {
+  ): Result = {
     val history = state.history :+ requestResponse
 
     def getResponse(id: EndpointRequestId) =
@@ -165,9 +173,9 @@ object ResponseValidator {
       "Resulting history must always contain current request/response."
     )
 
-    ResponseValidationResult(
+    Result(
       processed.collect { case (id, state) => id.withoutState -> state },
-      ResponseValidationState(
+      State(
         newDeferred,
         nextMutatingRequestId,
         newHistory

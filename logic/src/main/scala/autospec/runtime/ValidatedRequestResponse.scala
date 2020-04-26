@@ -1,6 +1,5 @@
 package autospec.runtime
 
-import playground.EndpointRequestResponse
 import autospec.schema.ConditionIdWithProvenance
 import autospec.{RuntimeSymbolsExecuted => RE}
 

@@ -1,11 +1,10 @@
-package playground
+package autospec.runtime
 
+import autospec.runtime.resolvers.RuntimeSymbolResolver
+import autospec.schema.ApplicationSchema
 import cats.data.Chain
 import fs2.Stream
 import monix.eval.Task
-import autospec.runtime.resolvers.RuntimeSymbolResolver
-import autospec.runtime._
-import autospec.schema.ApplicationSchema
 
 class ValidationStreamFromTestPlan(requestExecutor: EndpointRequestExecutor) {
 

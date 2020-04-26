@@ -1,17 +1,17 @@
-package playground
+package autospec.runtime
 
-import cats.data.NonEmptyList
-import cats.implicits._
-import io.circe.Json
-import monix.eval.Task
 import autospec.IntermediateSymbols.{Predicate => IP}
 import autospec.SchemaSymbols.{Predicate => SP}
 import autospec.common.FunctorExtensions._
 import autospec.common.MathUtils._
-import autospec.runtime.EndpointRequest
+import autospec.runtime.RequestGenerator.CallableEndpoint
 import autospec.runtime.resolvers.IntermediateSymbolResolver
 import autospec.schema._
 import autospec.{IntermediateSymbols => I, SchemaSymbols => S}
+import cats.data.NonEmptyList
+import cats.implicits._
+import io.circe.Json
+import monix.eval.Task
 
 import scala.util.Random
 
@@ -384,4 +384,8 @@ class RequestGenerator(
 
   }
 
+}
+
+object RequestGenerator {
+  private case class CallableEndpoint(endpointId: EndpointId, possibleRequests: NonEmptyList[EndpointRequest])
 }

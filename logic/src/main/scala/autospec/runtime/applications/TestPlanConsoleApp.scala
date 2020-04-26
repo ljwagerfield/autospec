@@ -5,8 +5,7 @@ import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
-import playground.{Session, ValidationStreamFromTestPlan}
-import autospec.runtime._
+import autospec.runtime.{ValidationStreamFromTestPlan, _}
 import autospec.schema.ApplicationSchema
 
 class TestPlanConsoleApp()(implicit scheduler: Scheduler) {

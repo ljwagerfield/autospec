@@ -1,4 +1,4 @@
-package playground
+package autospec.runtime
 
 import autospec.schema.EndpointId
 

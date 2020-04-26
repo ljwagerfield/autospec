@@ -1,7 +1,6 @@
-package playground
+package autospec.runtime
 
 import autospec.common.ULID
-import autospec.runtime.{EndpointRequestId, EndpointRequestIndex, SessionId}
 import autospec.schema.ApplicationSchema
 import cats.effect.concurrent.Ref
 import monix.eval.Task

@@ -1,6 +1,4 @@
-package playground
-
-import autospec.runtime.EndpointRequest
+package autospec.runtime
 
 case class RequestGeneratorResult(
   opportunities: Opportunities,

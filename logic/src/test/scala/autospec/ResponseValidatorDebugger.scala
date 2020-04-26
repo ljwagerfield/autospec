@@ -1,13 +1,12 @@
 package autospec
 
-import autospec.runtime._
+import autospec.runtime.{ValidationStreamFromTestPlan, _}
 import autospec.runtime.resolvers.SymbolConverter
 import autospec.schema.ApplicationSchema
 import autospec.{RuntimeSymbolsExecuted => RE, RuntimeSymbolsIndexed => RI}
 import cats.Id
 import io.circe.Json
 import monix.eval.Task
-import playground.{EndpointRequestResponse, Session, ValidationStreamFromTestPlan}
 
 /**
   * Transforms the output of [[autospec.runtime.ResponseValidator]] into a more testable structure.
