@@ -137,4 +137,5 @@ object BaseSymbolResolver {
 
   private def toVector(json: Json): Vector[Json] =
     json.asArray.getOrElse(if (json.isNull) Vector.empty else Vector(json))
+
 }

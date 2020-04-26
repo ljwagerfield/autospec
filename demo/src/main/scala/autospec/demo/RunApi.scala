@@ -10,4 +10,5 @@ object RunApi extends IOApp {
     implicit val scheduler: Scheduler = Scheduler.traced
     new RestApi().run().as(ExitCode.Success).to[IO]
   }
+
 }

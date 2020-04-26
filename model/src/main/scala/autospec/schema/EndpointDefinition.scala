@@ -59,4 +59,5 @@ case class EndpointDefinition(
       name,
       throw new Exception(s"Cannot find parameter '$name' for endpoint '${id.value}' in schema.")
     )
+
 }

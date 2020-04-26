@@ -14,4 +14,5 @@ case class ApplicationSchema(apis: List[ApiDefinition], endpoints: List[Endpoint
 
   def condition(conditionId: ConditionId): Predicate =
     endpoint(conditionId.endpointId).conditions(conditionId)
+
 }

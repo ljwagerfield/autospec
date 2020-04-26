@@ -23,4 +23,5 @@ class HttpRequestExecutor(httpClient: Client[Task]) {
     }.adaptError {
       case e => new Exception(s"Failed to execute request '${request.method.name} ${request.uri.toString()}'", e)
     }
+
 }

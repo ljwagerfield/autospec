@@ -9,6 +9,7 @@ import io.circe.Json
   *             could have been any structured serialization format (e.g. XML, YAML, etc.).
   */
 case class EndpointResponse(status: Int, body: Json, bodyRaw: String) {
+
   override def toString: String =
     s"($status) ${if (body.isNull) truncate(bodyRaw.replaceAllLiterally("\n", "\\n")) else body.noSpaces}"
 
@@ -19,4 +20,5 @@ case class EndpointResponse(status: Int, body: Json, bodyRaw: String) {
       "<no body>"
     else
       s"'$value'"
+
 }

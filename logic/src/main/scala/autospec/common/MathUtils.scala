@@ -34,4 +34,5 @@ object MathUtils {
 
   def cartesianProduct[K, V](lists: Map[K, List[V]]): List[Map[K, V]] =
     lists.sequence
+
 }

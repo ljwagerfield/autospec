@@ -117,6 +117,7 @@ object SetPairApi {
           )
         )
       )
+
   }
 
   object Client extends SetPairApi[EndpointRequestSymbolic] {
@@ -126,4 +127,5 @@ object SetPairApi {
     def listA()                            = ClientMacros.endpointRequest()
     def listB()                            = ClientMacros.endpointRequest()
   }
+
 }

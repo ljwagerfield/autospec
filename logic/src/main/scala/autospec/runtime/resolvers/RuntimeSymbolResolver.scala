@@ -9,6 +9,7 @@ import io.circe.Json
 import autospec.runtime.{EndpointRequestId, EndpointRequestIndex, EndpointResponse}
 
 object RuntimeSymbolResolver {
+
   private val resolveByIndex =
     (history: Chain[EndpointResponse]) => (idx: EndpointRequestIndex) => history.get(idx.index).get
 
@@ -49,4 +50,5 @@ object RuntimeSymbolResolver {
       case RI.StatusCode(requestIndex)   => Json.fromInt(resolve(requestIndex).status)
       case RI.ResponseBody(requestIndex) => resolve(requestIndex).body
     }
+
 }

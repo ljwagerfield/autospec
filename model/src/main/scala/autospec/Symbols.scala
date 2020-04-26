@@ -12,6 +12,7 @@ sealed trait CommonSymbols {
 
   // Leafs
   case class Literal(value: Json) extends Symbol
+
   case class LambdaParameter(distance: Int)
     extends Symbol // 0 is current lambda's param, 1 is parent, 2 is grandparent, etc. Used with things like 'Exists'
 
@@ -40,9 +41,12 @@ sealed trait CommonSymbols {
   }
 
   object Literal {
+
     def apply(value: Int): Literal =
       Literal(Json.fromInt(value))
+
   }
+
 }
 
 object BaseSymbols extends CommonSymbols {
@@ -70,6 +74,7 @@ object SchemaSymbols extends CommonSymbols {
     parameters: SMap[EndpointParameterName, Symbol],
     evaluateAfterExecution: Boolean
   ) extends SchemaSymbol
+
 }
 
 object IntermediateSymbols extends CommonSymbols {

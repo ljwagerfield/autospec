@@ -86,4 +86,5 @@ object ScalaSymbolPrinter extends SymbolPrinter {
     else
       value
   }
+
 }

@@ -99,4 +99,5 @@ object HttpRequestEncoder {
       case EndpointParameterSerialization.Json =>
         `Content-Type`(mediaType"application/json", http4s.DefaultCharset)
     }
+
 }

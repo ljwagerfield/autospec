@@ -51,4 +51,5 @@ class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
       .compile
       .drain
   }
+
 }

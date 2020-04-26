@@ -9,6 +9,7 @@ sealed trait ConditionStatus extends Product with Serializable {
       case Failed => true
       case Passed => false
     }
+
 }
 
 object ConditionStatus {

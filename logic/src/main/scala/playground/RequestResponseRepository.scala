@@ -6,6 +6,7 @@ import monix.eval.Task
 import autospec.schema.EndpointId
 
 class RequestResponseRepository {
+
   private val sessionsRef: Ref[Task, Map[SessionId, List[EndpointRequestResponse]]] =
     Ref.unsafe[Task, Map[SessionId, List[EndpointRequestResponse]]](Map.empty)
 
@@ -18,4 +19,5 @@ class RequestResponseRepository {
 
   def getPreviousResponses(sessionId: SessionId, limit: Int): Task[Map[EndpointId, List[EndpointRequestResponse]]] =
     sessionsRef.get.map(_.getOrElse(sessionId, Nil).take(limit).groupBy(_.request.endpointId))
+
 }

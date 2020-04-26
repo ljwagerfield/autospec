@@ -73,4 +73,5 @@ abstract class ResponseValidatorSpecBase extends BaseSpec {
         expected((requestIndex, request.request, actual))
     }
   }
+
 }

@@ -50,4 +50,5 @@ object SymbolConverter {
       case x                       => throw new Exception(s"No matches for $x in case statement.")
     }
   }
+
 }

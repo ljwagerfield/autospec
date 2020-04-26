@@ -33,5 +33,7 @@ object SymbolExtensions {
         case x @ SP.Exists(symbol, predicate)  => x :: predicate.toList ::: symbol.toList
         case x @ SP.Contains(collection, item) => x :: item.toList ::: collection.toList
       }
+
   }
+
 }

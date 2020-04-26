@@ -31,21 +31,28 @@ object FunctorExtensions {
         else
           accum
       }._2
+
   }
 
   implicit class RichTask[A](val task: Task[A]) extends AnyVal {
+
     def toEitherT[E]: EitherT[Task, E, A] =
       EitherT.liftF(task)
+
   }
 
   implicit class RichList[A](val list: List[A]) extends AnyVal {
+
     def toNEL: Option[NonEmptyList[A]] =
       NonEmptyList.fromList(list)
+
   }
 
   implicit class RichChain[A](val value: Chain[A]) extends AnyVal {
+
     def tail: Chain[A] =
       value.uncons.fold(Chain.empty[A])(_._2)
+
   }
 
   implicit class RichOption[A](val value: Option[A]) extends AnyVal {
@@ -54,6 +61,7 @@ object FunctorExtensions {
       thunk
       value
     }
+
   }
 
   implicit class RichMapM[K, V, F[_]](val value: Map[K, F[V]]) extends AnyVal {
@@ -69,6 +77,7 @@ object FunctorExtensions {
       val newConditions = M.combine(oldConditions, values)
       value ++ Map(key -> newConditions)
     }
+
   }
 
   implicit class RichMap[K, V](val value: Map[K, V]) extends AnyVal {
@@ -97,5 +106,7 @@ object FunctorExtensions {
 
     def swap: Map[V, Set[K]] =
       value.groupMap(_._2)(_._1).view.mapValues(_.toSet).toMap
+
   }
+
 }

@@ -21,4 +21,5 @@ case class ConditionIdWithState(
       conditionId,
       provenance
     )
+
 }

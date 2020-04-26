@@ -171,6 +171,7 @@ object ListPairApi {
           )
         )
       )
+
   }
 
   object Client extends ListPairApi[EndpointRequestSymbolic] {
@@ -183,4 +184,5 @@ object ListPairApi {
     def removeB(value: Int) = ClientMacros.endpointRequest()
     def listB()             = ClientMacros.endpointRequest()
   }
+
 }

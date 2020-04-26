@@ -28,4 +28,5 @@ object IntermediateSymbolResolver {
     symbol match {
       case Parameter(name) => resolvedParams(name)
     }
+
 }

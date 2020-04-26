@@ -21,4 +21,5 @@ object RunGenerator extends IOApp {
       )
     ).as(ExitCode.Success).to[IO]
   }
+
 }

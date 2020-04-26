@@ -16,6 +16,7 @@ sealed trait ConditionType {
       case Precondition  => false
       case Postcondition => true
     }
+
 }
 
 object ConditionType {

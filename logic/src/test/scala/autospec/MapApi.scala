@@ -65,6 +65,7 @@ object MapApi {
           )
         )
       )
+
   }
 
   object Client extends MapApi[EndpointRequestSymbolic] {
@@ -72,4 +73,5 @@ object MapApi {
     def set(key: String, value: Int)       = ClientMacros.endpointRequest()
     def list()                             = ClientMacros.endpointRequest()
   }
+
 }

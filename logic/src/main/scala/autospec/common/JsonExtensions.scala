@@ -14,9 +14,11 @@ object JsonExtensions {
         Json.fromInt(0).asNumber
       else
         json.asNumber
+
   }
 
   implicit class RichJsonNumber(val number: JsonNumber) extends AnyVal {
+
     def +(other: JsonNumber): JsonNumber =
       binaryReduce(other, _ + _)
 
@@ -33,5 +35,7 @@ object JsonExtensions {
       Json.fromBigDecimal(
         op(number.toBigDecimal.get, other.toBigDecimal.get)
       ).asNumber.get
+
   }
+
 }

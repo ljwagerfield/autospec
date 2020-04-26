@@ -16,6 +16,7 @@ case class EndpointRequestSymbolic(
         s"Cannot find value for parameter '${name.value}' for endpoint '${endpointId.value}' in test path."
       )
     )
+
 }
 
 object EndpointRequestSymbolic {

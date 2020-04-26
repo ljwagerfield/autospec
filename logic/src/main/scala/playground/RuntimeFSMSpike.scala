@@ -22,8 +22,10 @@ object RuntimeFSMSpike extends App {
   type Predicate      = State => Boolean
 
   case class Endpoint(name: EndpointId, preconditions: List[Predicate], action: Endo[State]) {
+
     def isCallable(state: State): Boolean =
       preconditions.forall(_(state))
+
   }
 
   /**

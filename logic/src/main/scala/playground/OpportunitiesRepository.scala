@@ -5,6 +5,7 @@ import cats.effect.concurrent.Ref
 import monix.eval.Task
 
 class OpportunitiesRepository {
+
   private val sessionsRef: Ref[Task, Map[SessionId, List[Opportunities]]] =
     Ref.unsafe[Task, Map[SessionId, List[Opportunities]]](Map.empty)
 
@@ -17,4 +18,5 @@ class OpportunitiesRepository {
 
   def getPreviousOpportunities(sessionId: SessionId, limit: Int): Task[List[Opportunities]] =
     sessionsRef.get.map(_.getOrElse(sessionId, Nil).take(limit))
+
 }

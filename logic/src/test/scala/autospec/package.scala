@@ -53,4 +53,5 @@ package object autospec {
       }
     )
   }
+
 }

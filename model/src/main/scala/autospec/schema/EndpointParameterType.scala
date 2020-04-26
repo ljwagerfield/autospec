@@ -20,4 +20,5 @@ object EndpointParameterType {
   case class Array(elementTypes: List[EndpointParameterType]) extends EndpointParameterType {
     def isConstrained: Boolean = elementTypes.nonEmpty
   }
+
 }

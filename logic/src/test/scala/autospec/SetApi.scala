@@ -146,6 +146,7 @@ object SetApi {
         ),
         forcePure = true
       )
+
   }
 
   object Client extends SetApi[EndpointRequestSymbolic] {
@@ -156,4 +157,5 @@ object SetApi {
     def list()                             = ClientMacros.endpointRequest()
     def count()                            = ClientMacros.endpointRequest()
   }
+
 }

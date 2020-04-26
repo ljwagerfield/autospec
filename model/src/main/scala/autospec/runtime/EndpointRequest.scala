@@ -16,6 +16,7 @@ case class EndpointRequest(endpointId: EndpointId, parameterValues: Map[Endpoint
 
   def prettyPrint: String =
     s"${endpointId.value}(${parameterValues.toList.map(x => s"${x._1.value} = ${x._2}").mkString(", ")})"
+
 }
 
 object EndpointRequest {

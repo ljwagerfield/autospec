@@ -37,4 +37,5 @@ object ULID {
       millis <- implicitly[Clock[F]].realTime(TimeUnit.MILLISECONDS)
       ulid   <- Sync[F].delay(ULID(ulidGenerator.nextValue(millis)))
     } yield ulid
+
 }
