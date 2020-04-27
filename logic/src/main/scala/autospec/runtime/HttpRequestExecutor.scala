@@ -6,7 +6,8 @@ import io.circe.parser._
 import monix.eval.Task
 import org.http4s.client.Client
 import org.http4s.client.middleware.{Retry, RetryPolicy}
-import org.http4s.{Request, Response}
+import org.http4s.{Request, Response, Status}
+
 import scala.concurrent.duration._
 
 class HttpRequestExecutor(httpClient: Client[Task]) {
@@ -35,6 +36,10 @@ class HttpRequestExecutor(httpClient: Client[Task]) {
 
   // Todo: replace this with just 'RetryPolicy.defaultRetriable' (see: https://trello.com/c/Opnd483A/28-handle-request-failures)
   private def defaultRetriableOrExceptions[F[_]](req: Request[F], result: Either[Throwable, Response[F]]): Boolean =
-    RetryPolicy.defaultRetriable(req, result) || result.isLeft
+    // Don't retry 500s, as that's considered a failure AutoSpec wants to flag.
+    result.forall(_.status =!= Status.InternalServerError) && (RetryPolicy.defaultRetriable(
+      req,
+      result
+    ) || result.isLeft)
 
 }
