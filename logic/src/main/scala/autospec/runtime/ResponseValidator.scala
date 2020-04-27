@@ -32,13 +32,24 @@ object ResponseValidator {
     history: Chain[EndpointRequestResponse]
   )
 
-  def stream[A](schema: ApplicationSchema, responseStream: Stream[Task, A])(
+  def stream(
+    schema: ApplicationSchema,
+    responseStream: Stream[Task, EndpointRequestResponse]
+  ): Stream[Task, ValidatedRequestResponse] =
+    streamEither(schema, responseStream.map(_.asRight))(identity).map(_.toOption.get._2)
+
+  def streamEither[E, A](schema: ApplicationSchema, responseStream: Stream[Task, Either[E, A]])(
     f: A => EndpointRequestResponse
-  ): Stream[Task, (A, ValidatedRequestResponse)] =
+  ): Stream[Task, Either[E, (A, ValidatedRequestResponse)]] =
     responseStream
-      .mapAccumulate(initialState) { (oldState, response) =>
-        val Result(result, newState) = validate(schema, oldState, f(response))
-        (newState, (response, ValidatedRequestResponse(f(response), result)))
+      .mapAccumulate(initialState) { (oldState, responseMaybe) =>
+        responseMaybe.fold(
+          oldState -> _.asLeft,
+          { response =>
+            val Result(result, newState) = validate(schema, oldState, f(response))
+            (newState, (response, ValidatedRequestResponse(f(response), result)).asRight)
+          }
+        )
       }
       .map(_._2)
 

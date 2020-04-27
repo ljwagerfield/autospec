@@ -1,10 +1,12 @@
 package autospec
 
-import autospec.runtime.{ValidatedStreamFromTestPlan, _}
+import autospec.runtime.exceptions.HttpClientException
+import autospec.runtime.{ValidatedStreamFromRequestStream, _}
 import autospec.runtime.resolvers.SymbolConverter
 import autospec.schema.ApplicationSchema
 import autospec.{RuntimeSymbolsExecuted => RE, RuntimeSymbolsIndexed => RI}
 import cats.Id
+import cats.data.EitherT
 import io.circe.Json
 import monix.eval.Task
 
@@ -31,23 +33,28 @@ object ResponseValidatorDebugger {
     import monix.execution.Scheduler.Implicits.global
 
     val requestExecutor = new EndpointRequestExecutor {
-      override def execute(session: Session, request: EndpointRequest): Task[EndpointRequestResponse] =
-        session.newRequestId().map { requestId =>
-          EndpointRequestResponse(
-            requestId,
-            request,
-            EndpointResponse(0, Json.Null, "null") // See comment above.
-          )
-        }
+      override def execute(
+        session: Session,
+        request: EndpointRequest
+      ): EitherT[Task, HttpClientException, EndpointRequestResponse] =
+        EitherT.liftF(
+          session.newRequestId().map { requestId =>
+            EndpointRequestResponse(
+              requestId,
+              request,
+              EndpointResponse(0, Json.Null, "null") // See comment above.
+            )
+          }
+        )
     }
 
-    val validationStream = new ValidatedStreamFromTestPlan(requestExecutor)
+    val validationStream = new ValidatedStreamFromRequestStream(requestExecutor)
     val pathExecutor     = new TestPlanExecutor(validationStream)
     val responses =
       for {
         session   <- Session.newSession(schema)
         responses <- pathExecutor.execute(session, requests, haltOnFailure = false)
-      } yield responses
+      } yield responses._2
 
     responses.runSyncUnsafe().map { response =>
       EndpointRequestWithChecks(

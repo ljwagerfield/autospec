@@ -27,8 +27,8 @@ class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
     case DELETE -> Root / "foos" / value =>
       val valueInt = value.toInt
       state = state.filterNot(_ === valueInt)
-      if (Random.nextInt(2) == 0)
-        RequestTimeout()
+      if (Random.nextInt(1) == 0)
+        RequestTimeout() // Simulate network errors.
       else
         NoContent()
 

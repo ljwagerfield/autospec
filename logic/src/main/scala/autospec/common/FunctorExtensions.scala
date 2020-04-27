@@ -2,7 +2,7 @@ package autospec.common
 
 import cats.data.{Chain, EitherT, NonEmptyList}
 import cats.implicits._
-import cats.{Alternative, Bifoldable, FlatMap, Foldable, Monad, Monoid}
+import cats.{Alternative, Bifoldable, FlatMap, Foldable, Functor, Monad, Monoid}
 import monix.eval.Task
 
 object FunctorExtensions {
@@ -31,6 +31,9 @@ object FunctorExtensions {
         else
           accum
       }._2
+
+    def asRightT[E](implicit F: Functor[F]): EitherT[F, E, A] =
+      EitherT.right[E](fa)
 
   }
 

@@ -30,6 +30,8 @@ version, Java Version and Scala Version synced between the `build.sbt` and the G
 
 ### Error handling
 
+> TL;DR: return `EitherT` if a caller up the stack branches on the `Left`, or a failed monad if not.
+
 Please follow this convention for error handling:
 
 1.   Use `EitherT` when the caller can handle the error (i.e. is able to logically branch and

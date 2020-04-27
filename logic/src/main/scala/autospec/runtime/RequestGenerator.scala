@@ -13,6 +13,7 @@ import cats.implicits._
 import io.circe.Json
 import monix.eval.Task
 import fs2.Stream
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.immutable.Queue
 import scala.util.Random
@@ -24,17 +25,23 @@ import scala.util.Random
   * doing so in as few requests as possible (this is the most challenging part of AutoSpec, and always needs improving).
   */
 class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
+  private lazy val logger: Logger = LoggerFactory.getLogger(getClass)
 
   def stream(session: Session): Stream[Task, EndpointRequestResponse] =
     Stream.unfoldEval(initialState) { state =>
       nextRequest(session.schema, state).traverse {
         case Result(opportunities, request) =>
-          requestExecutor.execute(session, request).map { response =>
-            // Todo: recover on error (use an either in response executor: it's now expected / handleable).
-            response -> state.append(opportunities, response)
-          }
+          requestExecutor
+            .execute(session, request)
+            .map(response => Some(response) -> state.append(opportunities, response))
+            .leftMap { e =>
+              logger.info(
+                s"Skipping request that failed after several retry attempts (${e.request})"
+              )
+            }
+            .getOrElse(None -> state)
       }
-    }
+    }.collect { case Some(response) => response }
 
   private def nextRequest(schema: ApplicationSchema, state: State): Option[Result] = {
     val callableEndpoints = getCallableEndpoints(schema, state)

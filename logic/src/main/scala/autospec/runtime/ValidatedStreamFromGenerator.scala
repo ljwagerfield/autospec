@@ -15,6 +15,6 @@ class ValidatedStreamFromGenerator(requestGenerator: RequestGenerator) {
   private def validatedStream(
     session: Session
   )(responseStream: Stream[Task, EndpointRequestResponse]): Stream[Task, ValidatedRequestResponse] =
-    ResponseValidator.stream(session.schema, responseStream)(identity).map(_._2)
+    ResponseValidator.stream(session.schema, responseStream)
 
 }

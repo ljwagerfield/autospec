@@ -1,12 +1,13 @@
 package autospec.runtime.applications
 
 import autospec.runtime.ConditionStatus.{Failed, Passed}
+import autospec.runtime.exceptions.HttpClientExceptionWithSymbols
+import autospec.runtime.{ValidatedStreamFromRequestStream, _}
+import autospec.schema.ApplicationSchema
 import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
-import autospec.runtime.{ValidatedStreamFromTestPlan, _}
-import autospec.schema.ApplicationSchema
 
 class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
   private val printer: SymbolPrinter = ScalaSymbolPrinter
@@ -15,7 +16,7 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
     AsyncHttpClient.resource[Task]().use { httpClient =>
       val httpRequestExecutor     = new HttpRequestExecutor(httpClient)
       val endpointRequestExecutor = new EndpointRequestExecutorImpl(httpRequestExecutor)
-      val validationStream        = new ValidatedStreamFromTestPlan(endpointRequestExecutor)
+      val validationStream        = new ValidatedStreamFromRequestStream(endpointRequestExecutor)
       val testPathExecutor        = new TestPlanExecutor(validationStream)
       for {
         session     <- Session.newSession(schema)
@@ -26,24 +27,30 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
   private def printResults(
     schema: ApplicationSchema,
     paths: List[TestPlan],
-    testResults: Map[TestPlanId, List[ValidatedRequestResponseWithSymbols]]
+    testResults: Map[TestPlanId, (Option[HttpClientExceptionWithSymbols], List[ValidatedRequestResponseWithSymbols])]
   ): Unit = {
-    def color(failed: Boolean) = if (failed) Console.RED else Console.GREEN
+    def color(failed: Boolean): String = if (failed) Console.RED else Console.GREEN
+
+    def printRequest(failed: Boolean, index: Long, request: EndpointRequestSymbolic): Unit =
+      println(s"${color(failed)}    $index: ${printer.print(request, index)}")
 
     println(s"${color(false)}Tests:")
     println()
 
     paths.foreach { path =>
       println(s"${color(false)}  ${path.id.value}:")
-      val pathResult    = testResults(path.id)
-      val allConditions = pathResult.flatMap(_.resolvedConditions).toMap
+
+      val (errorOpt, pathResult) = testResults(path.id)
+      val allConditions          = pathResult.flatMap(_.resolvedConditions).toMap
+
       pathResult.foreach { result =>
         val index            = result.requestId.requestIndex.index
         val request          = result.requestSymbolic
         val isTestPathFailed = result.isFailed
         val conditions       = schema.endpoint(request.endpointId).conditions
 
-        println(s"${color(isTestPathFailed)}    $index: ${printer.print(request, index)}")
+        printRequest(isTestPathFailed, index, request)
+
         conditions.foreach {
           case (conditionId, predicate) =>
             val (icon, color) = allConditions.get(conditionId.withProvenance(result.requestId)).map(_._1) match {
@@ -65,16 +72,26 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
         }
       }
 
+      errorOpt.foreach { error =>
+        printRequest(true, pathResult.size.toLong, error.request)
+        println(
+          s"${color(true)}       ▣ Aborted: request failed after several retry attempts."
+        )
+      }
+
       println()
     }
 
     val failureCount =
-      testResults.values.toList.flatMap(_.toList).flatMap(_.resolvedConditions.values.toList).count(_._1.isFailed)
+      testResults.values.count {
+        case (Some(_), _)    => true
+        case (None, results) => results.exists(_.isFailed)
+      }
 
     if (failureCount === 0)
       print(s"${color(false)}All tests passed.")
     else
-      print(s"${color(true)}Uh oh! You have $failureCount failed condition${if (failureCount === 1) "" else "s"}.")
+      print(s"${color(true)}Uh oh! You have $failureCount failed test${if (failureCount === 1) "" else "s"}.")
 
     println(Console.RESET)
   }
