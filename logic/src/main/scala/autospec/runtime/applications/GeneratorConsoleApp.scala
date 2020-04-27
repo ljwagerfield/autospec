@@ -13,18 +13,10 @@ class GeneratorConsoleApp(implicit scheduler: Scheduler) {
 
   def run(schema: ApplicationSchema): Task[Unit] =
     AsyncHttpClient.resource[Task]().use { httpClient =>
-      val config                    = Config(1000)
-      val httpRequestExecutor       = new HttpRequestExecutor(httpClient)
-      val endpointRequestExecutor   = new EndpointRequestExecutorImpl(httpRequestExecutor)
-      val requestResponseRepository = new RequestResponseRepository()
-      val opportunitiesRepository   = new OpportunitiesRepository()
-      val requestGenerator          = new RequestGenerator(requestResponseRepository, opportunitiesRepository, config)
-      val validationStream = new ValidationStreamFromGenerator(
-        requestGenerator,
-        endpointRequestExecutor,
-        requestResponseRepository,
-        opportunitiesRepository
-      )
+      val httpRequestExecutor     = new HttpRequestExecutor(httpClient)
+      val endpointRequestExecutor = new EndpointRequestExecutorImpl(httpRequestExecutor)
+      val requestGenerator        = new RequestGenerator(endpointRequestExecutor)
+      val validationStream        = new ValidatedStreamFromGenerator(requestGenerator)
       for {
         session <- Session.newSession(schema)
         _ <- validationStream(session)

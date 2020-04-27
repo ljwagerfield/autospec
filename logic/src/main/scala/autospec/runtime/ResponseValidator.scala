@@ -15,6 +15,9 @@ import monix.eval.Task
 
 import scala.collection.immutable.{Map => ScalaMap}
 
+/**
+  * Validates the preconditions and postconditions for each request after it has been executed.
+  */
 object ResponseValidator {
   private val initialState: State = State(Map.empty, None, Chain.empty)
 
@@ -39,9 +42,6 @@ object ResponseValidator {
       }
       .map(_._2)
 
-  /**
-    * An online algorithm for validating server responses.
-    */
   private def validate(
     schema: ApplicationSchema,
     state: State,

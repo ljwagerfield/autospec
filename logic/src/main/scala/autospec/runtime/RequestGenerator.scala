@@ -4,7 +4,7 @@ import autospec.IntermediateSymbols.{Predicate => IP}
 import autospec.SchemaSymbols.{Predicate => SP}
 import autospec.common.FunctorExtensions._
 import autospec.common.MathUtils._
-import autospec.runtime.RequestGenerator.CallableEndpoint
+import autospec.runtime.RequestGenerator._
 import autospec.runtime.resolvers.IntermediateSymbolResolver
 import autospec.schema._
 import autospec.{IntermediateSymbols => I, SchemaSymbols => S}
@@ -12,46 +12,35 @@ import cats.data.NonEmptyList
 import cats.implicits._
 import io.circe.Json
 import monix.eval.Task
+import fs2.Stream
 
+import scala.collection.immutable.Queue
 import scala.util.Random
 
-class RequestGenerator(
-  responseRepository: RequestResponseRepository,
-  opportunitiesRepository: OpportunitiesRepository,
-  config: Config
-) {
+/**
+  * Generates the next request to send to the REST API under test.
+  *
+  * This involves outputting a meaningful sequence of requests that are most likely to uncover bugs in the REST API, and
+  * doing so in as few requests as possible (this is the most challenging part of AutoSpec, and always needs improving).
+  */
+class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
 
-  private case class ApplicationState(
-    previousResponses: Map[EndpointId, List[EndpointRequestResponse]],
-    previousOpportunities: List[Opportunities]
-  )
+  def stream(session: Session): Stream[Task, EndpointRequestResponse] =
+    Stream.unfoldEval(initialState) { state =>
+      nextRequest(session.schema, state).traverse {
+        case Result(opportunities, request) =>
+          requestExecutor.execute(session, request).map { response =>
+            // Todo: recover on error (use an either in response executor: it's now expected / handleable).
+            response -> state.append(opportunities, response)
+          }
+      }
+    }
 
-  /**
-    * The maximum factor to use for biasing the selection of an infrequently-seen endpoint vs a frequently-seen endpoint.
-    * For example, a factor of 10 says "if we've seen endpoint A once, and endpoint B every time, then give endpoint
-    * A 10x the chance of being called than endpoint B".
-    */
-  private val maxBiasFactor = 10
-
-  private val maxHistory = config.maxHistorySizeForRequestGenerator
-
-  def nextRequest(session: Session): Task[Option[RequestGeneratorResult]] =
-    for {
-      previousResponses     <- responseRepository.getPreviousResponses(session.id, maxHistory)
-      previousOpportunities <- opportunitiesRepository.getPreviousOpportunities(session.id, maxHistory)
-    } yield nextRequest(
-      session.schema,
-      ApplicationState(
-        previousResponses,
-        previousOpportunities
-      )
-    )
-
-  private def nextRequest(schema: ApplicationSchema, state: ApplicationState): Option[RequestGeneratorResult] = {
+  private def nextRequest(schema: ApplicationSchema, state: State): Option[Result] = {
     val callableEndpoints = getCallableEndpoints(schema, state)
     val chosenEndpointOpt = weightedRandom(callableEndpoints)(x => endpointWeight(state, x.endpointId))
     chosenEndpointOpt.map { chosenEndpoint =>
-      RequestGeneratorResult(
+      Result(
         Opportunities(
           possibleRequests = callableEndpoints.map(_.endpointId).toSet
         ),
@@ -65,15 +54,15 @@ class RequestGenerator(
     }
   }
 
-  private def getCallableEndpoints(schema: ApplicationSchema, state: ApplicationState): List[CallableEndpoint] =
+  private def getCallableEndpoints(schema: ApplicationSchema, state: State): List[CallableEndpoint] =
     schema.endpoints.flatMap(getCallableEndpoint(_, state))
 
-  private def getCallableEndpoint(endpoint: EndpointDefinition, state: ApplicationState): Option[CallableEndpoint] =
+  private def getCallableEndpoint(endpoint: EndpointDefinition, state: State): Option[CallableEndpoint] =
     getRequestCandidates(endpoint, state).toNEL.map(
       CallableEndpoint(endpoint.id, _)
     )
 
-  private def getRequestCandidates(endpoint: EndpointDefinition, state: ApplicationState): List[EndpointRequest] = {
+  private def getRequestCandidates(endpoint: EndpointDefinition, state: State): List[EndpointRequest] = {
     val paramsIfEndpointDependenciesMet =
       endpoint.preconditions.foldLeftM((List.empty[I.Predicate], Map.empty[EndpointParameterName, Json])) {
         (accum, precondition) =>
@@ -187,7 +176,7 @@ class RequestGenerator(
 
   private def resolveEndpointsInPredicate(
     predicate: S.Predicate,
-    state: ApplicationState,
+    state: State,
     resolvedParams: Map[EndpointParameterName, Json]
   ): List[(I.Predicate, Map[EndpointParameterName, Json])] = {
     val symbolConverter = new SymbolConverter(state, resolvedParams)
@@ -204,7 +193,7 @@ class RequestGenerator(
 
   private def resolveEndpointsInSymbol(
     symbol: S.Symbol,
-    state: ApplicationState,
+    state: State,
     resolvedParams: Map[EndpointParameterName, Json]
   ): List[(I.Symbol, Map[EndpointParameterName, Json])] = {
     val symbolConverter = new SymbolConverter(state, resolvedParams)
@@ -235,10 +224,10 @@ class RequestGenerator(
 
   private def resolveEndpointSymbol(
     endpoint: S.Endpoint,
-    state: ApplicationState,
+    state: State,
     resolvedParams: Map[EndpointParameterName, Json]
   ): List[(I.Literal, Map[EndpointParameterName, Json])] = {
-    val previousRequests = state.previousResponses.getOrElse(endpoint.endpointId, Nil)
+    val previousRequests = state.responses.getOrElse(endpoint.endpointId, Queue.empty)
     val paramCombinations =
       endpoint.parameters.toList.foldLeftM(
         Map.empty[EndpointParameterName, Either[EndpointParameterName, Json]] -> resolvedParams
@@ -289,9 +278,9 @@ class RequestGenerator(
   }
 
   private def matchRequestsByParams(
-    requests: List[EndpointRequestResponse],
+    requests: Seq[EndpointRequestResponse],
     params: Map[EndpointParameterName, Either[EndpointParameterName, Json]]
-  ): List[(I.Literal, Map[EndpointParameterName, Json])] = {
+  ): Seq[(I.Literal, Map[EndpointParameterName, Json])] = {
     val (variableParams, literalParams) = params.partitionEither(identity)
     val endpointParamsByVariable        = variableParams.swap.toList
     matchRequestsByLiterals(requests, literalParams).flatMap(
@@ -300,9 +289,9 @@ class RequestGenerator(
   }
 
   private def matchRequestsByLiterals(
-    requests: List[EndpointRequestResponse],
+    requests: Seq[EndpointRequestResponse],
     partialParams: Map[EndpointParameterName, Json]
-  ): List[EndpointRequestResponse] =
+  ): Seq[EndpointRequestResponse] =
     requests.filter { request =>
       partialParams.forall {
         case (paramName, paramValue) =>
@@ -339,8 +328,8 @@ class RequestGenerator(
     }
   }
 
-  private def endpointWeight(state: ApplicationState, endpoint: EndpointId): Int = {
-    val count      = state.previousOpportunities.take(maxBiasFactor).count(_.possibleRequests.contains(endpoint))
+  private def endpointWeight(state: State, endpoint: EndpointId): Int = {
+    val count      = state.opportunities.take(maxBiasFactor).count(_.possibleRequests.contains(endpoint))
     val maxPenalty = maxBiasFactor + 1
 
     // Random (no biasing of less-frequently available endpoints)
@@ -359,7 +348,7 @@ class RequestGenerator(
     maxPenalty - count
   }
 
-  class SymbolConverter(state: ApplicationState, resolvedParams: Map[EndpointParameterName, Json]) {
+  class SymbolConverter(state: State, resolvedParams: Map[EndpointParameterName, Json]) {
     type Convert[A, B] = (A, Map[EndpointParameterName, Json]) => List[(B, Map[EndpointParameterName, Json])]
 
     implicit val convertSymbol: Convert[S.Symbol, I.Symbol]          = resolveEndpointsInSymbol(_, state, _)
@@ -387,5 +376,50 @@ class RequestGenerator(
 }
 
 object RequestGenerator {
+
+  /**
+    * The maximum factor to use for biasing the selection of an infrequently-seen endpoint vs a frequently-seen endpoint.
+    * For example, a factor of 10 says "if we've seen endpoint A once, and endpoint B every time, then give endpoint
+    * A 10x the chance of being called than endpoint B".
+    */
+  private val maxBiasFactor = 10
+
+  /**
+    * For now we're assuming mean request/response sizes are under 1MB (1GB total).
+    *
+    * This limit is one of the reasons why it's important to keep test sequences focused on one area of the REST API at
+    * a time, else the relevant history vanishes and requests are just generated randomly, due to lack of any deep
+    * relevant heuristics.
+    */
+  private val maxHistory = 1000
+
+  private val initialState = State(Queue.empty, Queue.empty, 0)
+
   private case class CallableEndpoint(endpointId: EndpointId, possibleRequests: NonEmptyList[EndpointRequest])
+
+  private case class Opportunities(possibleRequests: Set[EndpointId])
+
+  private case class Result(
+    opportunities: Opportunities,
+    nextRequest: EndpointRequest
+  )
+
+  private case class State(history: Queue[EndpointRequestResponse], opportunities: Queue[Opportunities], size: Int) {
+    lazy val responses: Map[EndpointId, Queue[EndpointRequestResponse]] = history.groupBy(_.request.endpointId)
+
+    def append(o: Opportunities, r: EndpointRequestResponse): State =
+      if (size === maxHistory)
+        copy(
+          history       = history.enqueue(r).dequeue._2,
+          opportunities = opportunities.enqueue(o).dequeue._2
+        )
+      else
+        copy(
+          history       = history.enqueue(r),
+          opportunities = opportunities.enqueue(o),
+          size          = size + 1
+        )
+
+  }
+
 }

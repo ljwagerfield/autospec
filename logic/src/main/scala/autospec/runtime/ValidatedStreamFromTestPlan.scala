@@ -6,7 +6,7 @@ import cats.data.Chain
 import fs2.Stream
 import monix.eval.Task
 
-class ValidationStreamFromTestPlan(requestExecutor: EndpointRequestExecutor) {
+class ValidatedStreamFromTestPlan(requestExecutor: EndpointRequestExecutor) {
 
   def apply(
     session: Session,

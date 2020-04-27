@@ -4,7 +4,7 @@ import alleycats.std.all._
 import cats.implicits._
 import monix.eval.Task
 
-class TestPlanExecutor(stream: ValidationStreamFromTestPlan) {
+class TestPlanExecutor(stream: ValidatedStreamFromTestPlan) {
 
   def executeMany(
     session: Session,

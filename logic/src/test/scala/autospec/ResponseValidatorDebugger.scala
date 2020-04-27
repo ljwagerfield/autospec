@@ -1,6 +1,6 @@
 package autospec
 
-import autospec.runtime.{ValidationStreamFromTestPlan, _}
+import autospec.runtime.{ValidatedStreamFromTestPlan, _}
 import autospec.runtime.resolvers.SymbolConverter
 import autospec.schema.ApplicationSchema
 import autospec.{RuntimeSymbolsExecuted => RE, RuntimeSymbolsIndexed => RI}
@@ -41,7 +41,7 @@ object ResponseValidatorDebugger {
         }
     }
 
-    val validationStream = new ValidationStreamFromTestPlan(requestExecutor)
+    val validationStream = new ValidatedStreamFromTestPlan(requestExecutor)
     val pathExecutor     = new TestPlanExecutor(validationStream)
     val responses =
       for {

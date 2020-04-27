@@ -5,7 +5,7 @@ import cats.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.asynchttpclient.AsyncHttpClient
-import autospec.runtime.{ValidationStreamFromTestPlan, _}
+import autospec.runtime.{ValidatedStreamFromTestPlan, _}
 import autospec.schema.ApplicationSchema
 
 class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
@@ -15,7 +15,7 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
     AsyncHttpClient.resource[Task]().use { httpClient =>
       val httpRequestExecutor     = new HttpRequestExecutor(httpClient)
       val endpointRequestExecutor = new EndpointRequestExecutorImpl(httpRequestExecutor)
-      val validationStream        = new ValidationStreamFromTestPlan(endpointRequestExecutor)
+      val validationStream        = new ValidatedStreamFromTestPlan(endpointRequestExecutor)
       val testPathExecutor        = new TestPlanExecutor(validationStream)
       for {
         session     <- Session.newSession(schema)
