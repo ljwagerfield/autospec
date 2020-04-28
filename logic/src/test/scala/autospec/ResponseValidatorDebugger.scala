@@ -1,5 +1,7 @@
 package autospec
 
+import autospec.ResponseValidatorSpecBase.TestInstruction
+import autospec.ResponseValidatorSpecBase.TestInstruction.{RunAssertion, SimulateRequestFailure}
 import autospec.runtime.exceptions.HttpClientException
 import autospec.runtime.{ValidatedStreamFromRequestStream, _}
 import autospec.runtime.resolvers.SymbolConverter
@@ -7,8 +9,10 @@ import autospec.schema.ApplicationSchema
 import autospec.{RuntimeSymbolsExecuted => RE, RuntimeSymbolsIndexed => RI}
 import cats.Id
 import cats.data.EitherT
+import cats.implicits._
 import io.circe.Json
 import monix.eval.Task
+import org.http4s.{Method, Uri}
 
 /**
   * Transforms the output of [[autospec.runtime.ResponseValidator]] into a more testable structure.
@@ -26,10 +30,10 @@ object ResponseValidatorDebugger {
     *
     * See the result: notice how we're just returning the checks, and not the results of evaluating those checks.
     */
-  def generateTestPlan(
+  def executePlanAndReturnCheckedConditions(
     schema: ApplicationSchema,
-    requests: List[EndpointRequestSymbolic]
-  ): List[EndpointRequestWithChecks] = {
+    requests: Seq[(EndpointRequestSymbolic, TestInstruction)]
+  ): List[Option[EndpointRequestWithChecks]] = {
     import monix.execution.Scheduler.Implicits.global
 
     val requestExecutor = new EndpointRequestExecutor {
@@ -37,33 +41,47 @@ object ResponseValidatorDebugger {
         session: Session,
         request: EndpointRequest
       ): EitherT[Task, HttpClientException, EndpointRequestResponse] =
-        EitherT.liftF(
+        EitherT(
           session.newRequestId().map { requestId =>
-            EndpointRequestResponse(
-              requestId,
-              request,
-              EndpointResponse(0, Json.Null, "null") // See comment above.
-            )
+            val (_, testInstruction) = requests(requestId.requestIndex.index.toInt)
+            testInstruction match {
+              case SimulateRequestFailure =>
+                HttpClientException(
+                  "Simulated error",
+                  RequestSummary(Method.GET, Uri.unsafeFromString("http://dummyrequest")),
+                  new Exception()
+                ).asLeft
+
+              case _: RunAssertion =>
+                EndpointRequestResponse(
+                  requestId,
+                  request,
+                  EndpointResponse(0, Json.Null, "null") // See comment above.
+                ).asRight
+            }
           }
         )
     }
 
+    val testPath         = requests.map(_._1).toList
     val validationStream = new ValidatedStreamFromRequestStream(requestExecutor)
     val pathExecutor     = new TestPlanExecutor(validationStream)
     val responses =
       for {
         session   <- Session.newSession(schema)
-        responses <- pathExecutor.execute(session, requests, haltOnFailure = false)
-      } yield responses._2
+        responses <- pathExecutor.execute(session, testPath, haltOnFailure = false)
+      } yield responses
 
-    responses.runSyncUnsafe().map { response =>
+    val responseList = responses.runSyncUnsafe()
+
+    responseList.map(_.toOption.map { response =>
       EndpointRequestWithChecks(
         response.requestSymbolic,
         response.resolvedConditions.values.map {
           case (_, predicate) => convertToIndexedSymbol(predicate)
         }.toSet
       )
-    }
+    })
   }
 
   private def convertToIndexedSymbol(

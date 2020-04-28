@@ -27,11 +27,11 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
   private def printResults(
     schema: ApplicationSchema,
     paths: List[TestPlan],
-    testResults: Map[TestPlanId, (Option[HttpClientExceptionWithSymbols], List[ValidatedRequestResponseWithSymbols])]
+    testResults: Map[TestPlanId, List[Either[HttpClientExceptionWithSymbols, ValidatedRequestResponseWithSymbols]]]
   ): Unit = {
     def color(failed: Boolean): String = if (failed) Console.RED else Console.GREEN
 
-    def printRequest(failed: Boolean, index: Long, request: EndpointRequestSymbolic): Unit =
+    def printRequest(failed: Boolean, index: Int, request: EndpointRequestSymbolic): Unit =
       println(s"${color(failed)}    $index: ${printer.print(request, index)}")
 
     println(s"${color(false)}Tests:")
@@ -40,53 +40,51 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
     paths.foreach { path =>
       println(s"${color(false)}  ${path.id.value}:")
 
-      val (errorOpt, pathResult) = testResults(path.id)
-      val allConditions          = pathResult.flatMap(_.resolvedConditions).toMap
+      val pathResult         = testResults(path.id)
+      val resolvedConditions = pathResult.flatMap(_.fold(_ => Map.empty, _.resolvedConditions)).toMap
 
-      pathResult.foreach { result =>
-        val index            = result.requestId.requestIndex.index
-        val request          = result.requestSymbolic
-        val isTestPathFailed = result.isFailed
-        val conditions       = schema.endpoint(request.endpointId).conditions
+      pathResult.zipWithIndex.foreach {
+        case Left(failedRequest) -> index =>
+          printRequest(true, index, failedRequest.request)
 
-        printRequest(isTestPathFailed, index, request)
+          println(
+            s"${color(true)}       ▣ Aborted: request failed after several attempts."
+          )
 
-        conditions.foreach {
-          case (conditionId, predicate) =>
-            val (icon, color) = allConditions.get(conditionId.withProvenance(result.requestId)).map(_._1) match {
-              case None         => "?" -> Console.YELLOW
-              case Some(Failed) => "✖" -> Console.RED
-              case Some(Passed) => "✔" -> Console.GREEN
-            }
-            println(s"$color       $icon ${printer.print(predicate)}")
-        }
+        case Right(validatedRequest) -> index =>
+          val request          = validatedRequest.requestSymbolic
+          val isTestPathFailed = validatedRequest.isFailed
+          val schemaConditions = schema.endpoint(request.endpointId).conditions
+
+          printRequest(isTestPathFailed, index, request)
+
+          schemaConditions.foreach {
+            case (conditionId, predicate) =>
+              val (icon, color) =
+                resolvedConditions.get(conditionId.withProvenance(validatedRequest.requestId)).map(_._1) match {
+                  case None         => "?" -> Console.YELLOW
+                  case Some(Failed) => "✖" -> Console.RED
+                  case Some(Passed) => "✔" -> Console.GREEN
+                }
+              println(s"$color       $icon ${printer.print(predicate)}")
+          }
       }
 
       print(Console.RESET)
 
-      if (pathResult.exists(_.isFailed)) {
+      if (pathResult.exists(_.exists(_.isFailed))) {
         println(s"${Console.RESET}    responses:")
-        pathResult.zipWithIndex.foreach {
-          case (response, index) =>
-            println(s"      $index: $response")
-        }
-      }
-
-      errorOpt.foreach { error =>
-        printRequest(true, pathResult.size.toLong, error.request)
-        println(
-          s"${color(true)}       ▣ Aborted: request failed after several retry attempts."
-        )
+        pathResult
+          .zipWithIndex
+          .collect { case (Right(x), index) => s"      $index: ${x.response.toString}" }
+          .foreach(println)
       }
 
       println()
     }
 
     val failureCount =
-      testResults.values.count {
-        case (Some(_), _)    => true
-        case (None, results) => results.exists(_.isFailed)
-      }
+      testResults.values.count(testPath => testPath.exists(_.forall(_.isFailed)))
 
     if (failureCount === 0)
       print(s"${color(false)}All tests passed.")

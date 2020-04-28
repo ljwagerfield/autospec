@@ -1,5 +1,6 @@
 package autospec
 
+import autospec.ResponseValidatorSpecBase.TestInstruction.{RunAssertion, SimulateRequestFailure}
 import autospec.RuntimeSymbolsIndexed.Predicate._
 import autospec.RuntimeSymbolsIndexed._
 import autospec.SchemaSymbols.{Predicate => SP}
@@ -391,5 +392,30 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
         )
       )
     }
+
+    // A meta test (to test the test framework itself): ensures every request in the test paths are executed by the test
+    // framework and their conditions checked, even if there's a failing request in the middle of the path.
+    "ensures tests continue after failures" in {
+      var wasCalled = false
+
+      testInlineSpec(
+        EndpointDefinition(
+          EndpointId("list"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          Nil
+        )
+      )(
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(),
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> SimulateRequestFailure,
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> RunAssertion(_ => wasCalled = true)
+      )
+
+      wasCalled shouldBe true
+    }
+
   }
 }

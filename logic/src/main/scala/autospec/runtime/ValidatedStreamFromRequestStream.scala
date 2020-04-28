@@ -18,7 +18,6 @@ class ValidatedStreamFromRequestStream(requestExecutor: EndpointRequestExecutor)
     requestStream
       .through(responseStream(session))
       .through(validationStream(session.schema))
-      .takeThrough(_.isRight)
 
   private def responseStream(session: Session)(
     requestStream: Stream[Task, EndpointRequestSymbolic]
