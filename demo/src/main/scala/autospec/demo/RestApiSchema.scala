@@ -27,65 +27,65 @@ object RestApiSchema {
         )
       )
     ) ::
-    EndpointDefinition(
-      EndpointId("add"),
-      apiId,
-      HttpMethod.Post,
-      "/foos",
-      List(
-        EndpointParameter(
-          EndpointParameterName("value"),
-          EndpointParameterType.Int32,
-          EndpointParameterLocation.Body,
-          EndpointParameterSerialization.ToString("text/plain")
-        )
-      ),
-      Nil,
-      List(
-        Predicate.Contains(
-          Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
-          Parameter(EndpointParameterName("value"))
+      EndpointDefinition(
+        EndpointId("add"),
+        apiId,
+        HttpMethod.Post,
+        "/foos",
+        List(
+          EndpointParameter(
+            EndpointParameterName("value"),
+            EndpointParameterType.Int32,
+            EndpointParameterLocation.Body,
+            EndpointParameterSerialization.ToString("text/plain")
+          )
         ),
-        Predicate.Equals(
-          StatusCode,
-          Literal(200)
-        )
-      )
-    ) ::
-    EndpointDefinition(
-      EndpointId("delete"),
-      apiId,
-      HttpMethod.Delete,
-      "/foos/:value",
-      List(
-        EndpointParameter(
-          EndpointParameterName("value"),
-          EndpointParameterType.Int32,
-          EndpointParameterLocation.Path,
-          EndpointParameterSerialization.ToString("text/plain")
-        )
-      ),
-      Nil,
-      List(
-        Predicate.Not(
+        Nil,
+        List(
           Predicate.Contains(
             Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
             Parameter(EndpointParameterName("value"))
+          ),
+          Predicate.Equals(
+            StatusCode,
+            Literal(200)
           )
-        ),
-        Predicate.Equals(
-          Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
-          Subtract(
-            Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = false),
-            Parameter(EndpointParameterName("value"))
-          )
-        ),
-        Predicate.Equals(
-          StatusCode,
-          Literal(204)
         )
-      )
-    ) :: Nil
+      ) ::
+      EndpointDefinition(
+        EndpointId("delete"),
+        apiId,
+        HttpMethod.Delete,
+        "/foos/:value",
+        List(
+          EndpointParameter(
+            EndpointParameterName("value"),
+            EndpointParameterType.Int32,
+            EndpointParameterLocation.Path,
+            EndpointParameterSerialization.ToString("text/plain")
+          )
+        ),
+        Nil,
+        List(
+          Predicate.Not(
+            Predicate.Contains(
+              Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
+              Parameter(EndpointParameterName("value"))
+            )
+          ),
+          Predicate.Equals(
+            Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
+            Subtract(
+              Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = false),
+              Parameter(EndpointParameterName("value"))
+            )
+          ),
+          Predicate.Equals(
+            StatusCode,
+            Literal(204)
+          )
+        )
+      ) :: Nil
   )
 
 }
