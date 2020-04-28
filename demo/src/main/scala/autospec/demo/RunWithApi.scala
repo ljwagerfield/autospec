@@ -15,13 +15,13 @@ abstract class RunWithApi extends IOApp {
     for {
       exit <- SignallingRef[Task, Boolean](false)
       _ <- Task.gather(
-        List(
-          new RestApi().run(exit)
-        ).filterNot(_ => args.contains_("--no-dev-server")) :::
-        List(
-          runAutoSpec().flatMap(_ => exit.set(true))
-        )
-      )
+             List(
+               new RestApi().run(exit)
+             ).filterNot(_ => args.contains_("--no-dev-server")) :::
+             List(
+               runAutoSpec().flatMap(_ => exit.set(true))
+             )
+           )
     } yield ExitCode.Success
   }.to[IO]
 

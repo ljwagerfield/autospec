@@ -20,9 +20,9 @@ class GeneratorConsoleApp(implicit scheduler: Scheduler) {
       for {
         session <- Session.newSession(schema)
         _ <- validationStream(session)
-          .evalTap(processResult(schema, _))
-          .compile
-          .drain
+               .evalTap(processResult(schema, _))
+               .compile
+               .drain
       } yield ()
     }
 
