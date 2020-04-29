@@ -417,5 +417,97 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
       wasCalled shouldBe true
     }
 
+    "prevent postconditions being deferred across failed requests for mutating endpoints" in {
+      testInlineSpec(
+        EndpointDefinition(
+          EndpointId("list"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          List(
+            SP.Equals(
+              S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
+              S.ResponseBody
+            )
+          ),
+          forcePure = true
+        ),
+        EndpointDefinition(
+          EndpointId("clear"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          List(
+            SP.Equals(
+              S.Count(
+                S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true) // FORWARD LOOKUP
+              ),
+              S.Literal(0)
+            )
+          )
+        )
+      )(
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
+          ),
+        EndpointRequestSymbolic(EndpointId("clear"), SMap.empty) -> SimulateRequestFailure,
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
+          // No checks, as failing mutating request #1 clears deferred postconditions from request #0.
+        ),
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
+          Equals(ResponseBody(3), ResponseBody(2))
+        )
+      )
+    }
+
+    "prevent postconditions referring to requests that occurred before a failed request for a mutating endpoint" in {
+      testInlineSpec(
+        EndpointDefinition(
+          EndpointId("list"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          List(
+            SP.Equals(
+              S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = false), // REVERSE LOOKUP
+              S.ResponseBody
+            )
+          ),
+          forcePure = true
+        ),
+        EndpointDefinition(
+          EndpointId("clear"),
+          apiId,
+          method,
+          path,
+          Nil,
+          Nil,
+          List(
+            SP.Equals(
+              S.Count(
+                S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true)
+              ),
+              S.Literal(0)
+            )
+          )
+        )
+      )(
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
+          ),
+        EndpointRequestSymbolic(EndpointId("clear"), SMap.empty) -> SimulateRequestFailure,
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
+          // No checks, as failing mutating request #1 sets new boundary that forbids reverse lookups to #0.
+        ),
+        EndpointRequestSymbolic(EndpointId("list"), SMap.empty) -> checks(
+          Equals(ResponseBody(2), ResponseBody(3))
+        )
+      )
+    }
+
   }
 }

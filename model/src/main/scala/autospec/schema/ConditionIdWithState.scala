@@ -1,6 +1,7 @@
 package autospec.schema
 
 import autospec.runtime.EndpointRequestId
+import cats.implicits._
 
 /**
   * @param conditionId Condition ID
@@ -14,6 +15,8 @@ case class ConditionIdWithState(
   earliestDependency: EndpointRequestId,
   lastMutatingRequestId: Option[EndpointRequestId]
 ) {
+  require(earliestDependency <= provenance)
+
   def isPrecondition: Boolean = conditionId.conditionType.isPrecondition
 
   def withoutState: ConditionIdWithProvenance =

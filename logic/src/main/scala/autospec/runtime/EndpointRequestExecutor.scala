@@ -1,12 +1,17 @@
 package autospec.runtime
 
-import autospec.runtime.exceptions.HttpClientException
+import autospec.common.FunctorExtensions._
+import autospec.runtime.exceptions.EndpointRequestFailure
 import cats.data.EitherT
 import monix.eval.Task
-import autospec.common.FunctorExtensions._
 
 trait EndpointRequestExecutor {
-  def execute(session: Session, request: EndpointRequest): EitherT[Task, HttpClientException, EndpointRequestResponse]
+
+  def execute(
+    session: Session,
+    request: EndpointRequest
+  ): EitherT[Task, EndpointRequestFailure, EndpointRequestResponse]
+
 }
 
 class EndpointRequestExecutorImpl(httpRequestExecutor: HttpRequestExecutor) extends EndpointRequestExecutor {
@@ -14,11 +19,11 @@ class EndpointRequestExecutorImpl(httpRequestExecutor: HttpRequestExecutor) exte
   def execute(
     session: Session,
     request: EndpointRequest
-  ): EitherT[Task, HttpClientException, EndpointRequestResponse] =
+  ): EitherT[Task, EndpointRequestFailure, EndpointRequestResponse] =
     for {
-      id            <- session.newRequestId().asRightT[HttpClientException]
+      id            <- session.newRequestId().asRightT[EndpointRequestFailure]
       encodedRequest = HttpRequestEncoder.encode[Task](session.schema, request, id)
-      response      <- httpRequestExecutor.execute(encodedRequest)
+      response      <- httpRequestExecutor.execute(encodedRequest).leftMap(e => EndpointRequestFailure(request, id, e))
     } yield EndpointRequestResponse(id, request, response)
 
 }

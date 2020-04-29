@@ -17,6 +17,12 @@ object RunTestPlan extends RunWithApi {
     TestPlanId("example-test"),
     Chain(
       EndpointRequestSymbolic(
+        EndpointId("add"),
+        SMap(
+          EndpointParameterName("value") -> RuntimeSymbolsIndexed.Literal(Json.fromInt(42))
+        )
+      ),
+      EndpointRequestSymbolic(
         EndpointId("list"),
         SMap.empty
       ),
@@ -33,5 +39,5 @@ object RunTestPlan extends RunWithApi {
     )
   )
 
-  override protected def runAutoSpec(): Task[Unit] = new TestPlanConsoleApp().run(schema, List(testPath))
+  override protected def runAutoSpec(): Task[Unit] = new TestPlanConsoleApp().run(schema, List(testPath), false)
 }

@@ -1,7 +1,7 @@
 package autospec.runtime.applications
 
 import autospec.runtime.ConditionStatus.{Failed, Passed}
-import autospec.runtime.exceptions.HttpClientExceptionWithSymbols
+import autospec.runtime.exceptions.EndpointRequestFailureWithSymbols
 import autospec.runtime.{ValidatedStreamFromRequestStream, _}
 import autospec.schema.ApplicationSchema
 import cats.implicits._
@@ -12,7 +12,7 @@ import org.http4s.client.asynchttpclient.AsyncHttpClient
 class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
   private val printer: SymbolPrinter = ScalaSymbolPrinter
 
-  def run(schema: ApplicationSchema, paths: List[TestPlan]): Task[Unit] =
+  def run(schema: ApplicationSchema, paths: List[TestPlan], haltOnFailure: Boolean = true): Task[Unit] =
     AsyncHttpClient.resource[Task]().use { httpClient =>
       val httpRequestExecutor     = new HttpRequestExecutor(httpClient)
       val endpointRequestExecutor = new EndpointRequestExecutorImpl(httpRequestExecutor)
@@ -20,14 +20,14 @@ class TestPlanConsoleApp()(implicit scheduler: Scheduler) {
       val testPathExecutor        = new TestPlanExecutor(validationStream)
       for {
         session     <- Session.newSession(schema)
-        testResults <- testPathExecutor.executeMany(session, paths, haltOnFailure = true)
+        testResults <- testPathExecutor.executeMany(session, paths, haltOnFailure)
       } yield printResults(schema, paths, testResults)
     }
 
   private def printResults(
     schema: ApplicationSchema,
     paths: List[TestPlan],
-    testResults: Map[TestPlanId, List[Either[HttpClientExceptionWithSymbols, ValidatedRequestResponseWithSymbols]]]
+    testResults: Map[TestPlanId, List[Either[EndpointRequestFailureWithSymbols, ValidatedRequestResponseWithSymbols]]]
   ): Unit = {
     def color(failed: Boolean): String = if (failed) Console.RED else Console.GREEN
 

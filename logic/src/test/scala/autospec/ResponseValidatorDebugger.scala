@@ -2,7 +2,7 @@ package autospec
 
 import autospec.ResponseValidatorSpecBase.TestInstruction
 import autospec.ResponseValidatorSpecBase.TestInstruction.{RunAssertion, SimulateRequestFailure}
-import autospec.runtime.exceptions.HttpClientException
+import autospec.runtime.exceptions.{EndpointRequestFailure, HttpRequestFailure}
 import autospec.runtime.{ValidatedStreamFromRequestStream, _}
 import autospec.runtime.resolvers.SymbolConverter
 import autospec.schema.ApplicationSchema
@@ -40,16 +40,20 @@ object ResponseValidatorDebugger {
       override def execute(
         session: Session,
         request: EndpointRequest
-      ): EitherT[Task, HttpClientException, EndpointRequestResponse] =
+      ): EitherT[Task, EndpointRequestFailure, EndpointRequestResponse] =
         EitherT(
           session.newRequestId().map { requestId =>
             val (_, testInstruction) = requests(requestId.requestIndex.index.toInt)
             testInstruction match {
               case SimulateRequestFailure =>
-                HttpClientException(
-                  "Simulated error",
-                  RequestSummary(Method.GET, Uri.unsafeFromString("http://dummyrequest")),
-                  new Exception()
+                EndpointRequestFailure(
+                  request,
+                  requestId,
+                  HttpRequestFailure(
+                    "Simulated request failure",
+                    RequestSummary(Method.GET, Uri.unsafeFromString("http://dummyrequest")),
+                    new Exception()
+                  )
                 ).asLeft
 
               case _: RunAssertion =>

@@ -3,9 +3,10 @@ package autospec.runtime
 import alleycats.std.all._
 import autospec.common.FunctorExtensions._
 import autospec.runtime.ConditionStatus.{Failed, Passed}
+import autospec.runtime.exceptions.EndpointRequestFailure
 import autospec.runtime.resolvers.{RuntimeSymbolResolver, SymbolConverter}
 import autospec.schema.SymbolExtensions._
-import autospec.schema.{ApplicationSchema, ConditionIdWithProvenance, ConditionIdWithState}
+import autospec.schema.{ApplicationSchema, ConditionIdWithProvenance, ConditionIdWithState, EndpointDefinition}
 import autospec.{RuntimeSymbolsExecuted => RE, SchemaSymbols => S}
 import cats.data.Chain
 import cats.implicits._
@@ -32,33 +33,44 @@ object ResponseValidator {
     history: Chain[EndpointRequestResponse]
   )
 
-  def stream(
-    schema: ApplicationSchema,
-    responseStream: Stream[Task, EndpointRequestResponse]
-  ): Stream[Task, ValidatedRequestResponse] =
-    streamEither(schema, responseStream.map(_.asRight))(identity).map(_.toOption.get._2)
-
-  def streamEither[E, A](schema: ApplicationSchema, responseStream: Stream[Task, Either[E, A]])(
-    f: A => EndpointRequestResponse
-  ): Stream[Task, Either[E, (A, ValidatedRequestResponse)]] =
+  def stream[A, B](schema: ApplicationSchema, responseStream: Stream[Task, Either[A, B]])(
+    fa: A => EndpointRequestFailure,
+    fb: B => EndpointRequestResponse
+  ): Stream[Task, Either[A, (B, ValidatedRequestResponse)]] =
     responseStream
-      .mapAccumulate(initialState) { (oldState, responseMaybe) =>
-        responseMaybe.fold(
-          oldState -> _.asLeft,
-          { response =>
-            val Result(result, newState) = validate(schema, oldState, f(response))
-            (newState, (response, ValidatedRequestResponse(f(response), result)).asRight)
+      .mapAccumulate(initialState) { (oldState, responseOrError) =>
+        responseOrError.fold(
+          e => validateRequestFailure(schema, fa(e).request, fa(e).requestId, oldState) -> e.asLeft,
+          r => {
+            val Result(result, newState) = validateResponse(schema, oldState, fb(r))
+            newState -> (r, ValidatedRequestResponse(fb(r), result)).asRight
           }
         )
       }
       .map(_._2)
 
-  private def validate(
+  private def validateRequestFailure(
+    schema: ApplicationSchema,
+    request: EndpointRequest,
+    requestId: EndpointRequestId,
+    state: State
+  ): State =
+    updateState(
+      state,
+      schema.endpoint(request.endpointId),
+      requestId,
+      request,
+      ScalaMap.empty,
+      state.history
+    )
+
+  private def validateResponse(
     schema: ApplicationSchema,
     state: State,
-    requestResponse: EndpointRequestResponse
+    newResponse: EndpointRequestResponse
   ): Result = {
-    val history = state.history :+ requestResponse
+
+    val history = state.history :+ newResponse
 
     def getResponse(id: EndpointRequestId) =
       history.find(_.requestId === id).getOrElse(throw new Exception("History was truncated incorrectly."))
@@ -77,17 +89,17 @@ object ResponseValidator {
         .filter(r => upTo.forall(_ <= r.requestId))
     }
 
-    val endpoint = schema.endpoint(requestResponse.request.endpointId)
+    val endpoint = schema.endpoint(newResponse.request.endpointId)
     val ownConditions = endpoint.conditions.map {
       case (conditionId, predicate) =>
-        val requestId             = requestResponse.requestId
+        val requestId             = newResponse.requestId
         val lastMutatingRequestId = state.lastMutatingRequestId
         val reverseLookup         = getResponseBefore(requestId, lastMutatingRequestId, _)
         val earliestDependency = findEarliestDependency(
           schema,
           reverseLookup,
           getResponse(_).response,
-          requestResponse,
+          newResponse,
           predicate
         )
         (
@@ -100,18 +112,10 @@ object ResponseValidator {
           predicate
         )
     }
-    val request            = requestResponse.request
+    val request            = newResponse.request
     val deferredConditions = state.deferredConditions.getOrElse(request, Set.empty).toList
     val allConditions      = ownConditions ++ deferredConditions.map(x => x -> schema.condition(x.conditionId)).toMap
     val noForwardLookup    = (_: EndpointRequest) => None: Option[EndpointRequestResponse]
-
-    val nextMutatingRequestId =
-      if (endpoint.isMutating)
-        // Prevent subsequent requests from referring to responses before this request
-        // (previous responses are considered stale after a mutation).
-        Some(requestResponse.requestId)
-      else
-        state.lastMutatingRequestId
 
     val conditions =
       allConditions.groupBy { case (conditionId, _) => conditionId.provenance }
@@ -139,7 +143,7 @@ object ResponseValidator {
             }
         }
 
-    val (deferred, processedOpts) =
+    val (deferredByThisRound, processedOpts) =
       conditions.map {
         case (condition, Right(true -> predicate))  => condition -> Right(Some(Passed -> predicate))
         case (condition, Right(false -> predicate)) => condition -> Right(Some(Failed -> predicate))
@@ -147,50 +151,53 @@ object ResponseValidator {
       }.toMap.partitionEither(identity)
 
     // Drop unresolvable conditions (i.e. preconditions that depend on unresolved requests, and thus will never appear).
-    val processed =
-      processedOpts.collect { case (key, Some(value)) => key -> value }
-
-    val oldDeferred =
-      if (endpoint.isMutating)
-        // Clear previously deferred postconditions (mutations invalidate them).
-        ScalaMap.empty[EndpointRequest, Set[ConditionIdWithState]]
-      else
-        state.deferredConditions
-
-    val oldDeferredMinusSelf =
-      oldDeferred - request
-
-    val newDeferred =
-      oldDeferredMinusSelf.merge(deferred.swap)
-
-    val newHistory =
-      if (endpoint.isMutating)
-        // Truncate history (prevent it from growing indefinitely).
-        // Histories are likely to stay very short, containing usually fewer than 100 requests: they are truncated on
-        // each mutating request, leaving behind only the current request, and any requests depended on by deferred
-        // conditions of the current request AND any requests depended on by prior request's conditions that depended
-        // on the current request.
-        if (newDeferred.nonEmpty) {
-          val earliestDependency = newDeferred.values.flatten.map(_.earliestDependency).min
-          history.dropWhile(_.requestId =!= earliestDependency)
-        }
-        else
-          Chain.one(requestResponse)
-      else
-        history
-
-    assert(
-      newHistory.lastOption.exists(_.requestId === requestResponse.requestId),
-      "Resulting history must always contain current request/response."
-    )
+    val processed = processedOpts.collect { case (key, Some(value)) => key -> value }
 
     Result(
       processed.collect { case (id, state) => id.withoutState -> state },
-      State(
-        newDeferred,
-        nextMutatingRequestId,
-        newHistory
+      updateState(
+        state,
+        endpoint,
+        newResponse.requestId,
+        newResponse.request,
+        deferredByThisRound.swap,
+        history
       )
+    )
+  }
+
+  private def updateState(
+    state: State,
+    endpoint: EndpointDefinition,
+    requestId: EndpointRequestId,
+    request: EndpointRequest,
+    deferredByThisRound: ScalaMap[EndpointRequest, Set[ConditionIdWithState]],
+    history: Chain[EndpointRequestResponse]
+  ): State = {
+    val (oldDeferred, newMutatingRequestId, newHistory) =
+      if (endpoint.isMutating)
+        (
+          ScalaMap.empty[EndpointRequest, Set[ConditionIdWithState]],
+          Some(requestId), {
+            val earliestDependencies = deferredByThisRound.values.flatten.map(_.earliestDependency).toList.toNel
+            val earliestDependency   = earliestDependencies.fold(requestId)(_.minimum)
+            history.dropWhile(_.requestId =!= earliestDependency)
+          }
+        )
+      else
+        (
+          state.deferredConditions,
+          state.lastMutatingRequestId,
+          history
+        )
+
+    val oldDeferredMinusSelf = oldDeferred - request // Remove current request (as it's now been processed)
+    val newDeferred          = oldDeferredMinusSelf.merge(deferredByThisRound)
+
+    State(
+      newDeferred,
+      newMutatingRequestId,
+      newHistory
     )
   }
 

@@ -1,6 +1,6 @@
 package autospec.runtime
 
-import autospec.runtime.exceptions.HttpClientException
+import autospec.runtime.exceptions.HttpRequestFailure
 import autospec.runtime.HttpRequestExecutor._
 import cats.data.EitherT
 import cats.implicits._
@@ -23,7 +23,7 @@ class HttpRequestExecutor(httpClient: Client[Task]) {
     )
   )(httpClient)
 
-  def execute(request: Request[Task]): EitherT[Task, HttpClientException, EndpointResponse] = {
+  def execute(request: Request[Task]): EitherT[Task, HttpRequestFailure, EndpointResponse] = {
     val result =
       retryingClient.fetch(request) { response =>
         val failedDueToMaxRetryAttempts = shouldRetryRequest(request, response.asRight)
@@ -46,7 +46,7 @@ class HttpRequestExecutor(httpClient: Client[Task]) {
     val resultAsEitherT =
       EitherT(
         result
-          .map(_.asRight[HttpClientException])
+          .map(_.asRight[HttpRequestFailure])
           .recover { case e => error(request, e).asLeft }
       )
 
@@ -70,9 +70,9 @@ class HttpRequestExecutor(httpClient: Client[Task]) {
       result
     )
 
-  private def error(request: Request[Task], exception: Throwable): HttpClientException = {
+  private def error(request: Request[Task], exception: Throwable): HttpRequestFailure = {
     val requestSummary = RequestSummary(request)
-    HttpClientException(s"Request failed: $requestSummary", requestSummary, exception)
+    HttpRequestFailure(s"Request failed: $requestSummary", requestSummary, exception)
   }
 
 }

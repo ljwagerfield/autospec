@@ -1,6 +1,6 @@
 package autospec.runtime
 
-import autospec.runtime.exceptions.HttpClientExceptionWithSymbols
+import autospec.runtime.exceptions.EndpointRequestFailureWithSymbols
 import autospec.runtime.resolvers.RuntimeSymbolResolver
 import autospec.schema.ApplicationSchema
 import cats.data.Chain
@@ -14,14 +14,14 @@ class ValidatedStreamFromRequestStream(requestExecutor: EndpointRequestExecutor)
     session: Session
   )(
     requestStream: Stream[Task, EndpointRequestSymbolic]
-  ): Stream[Task, Either[HttpClientExceptionWithSymbols, ValidatedRequestResponseWithSymbols]] =
+  ): Stream[Task, Either[EndpointRequestFailureWithSymbols, ValidatedRequestResponseWithSymbols]] =
     requestStream
       .through(responseStream(session))
       .through(validationStream(session.schema))
 
   private def responseStream(session: Session)(
     requestStream: Stream[Task, EndpointRequestSymbolic]
-  ): Stream[Task, Either[HttpClientExceptionWithSymbols, (EndpointRequestSymbolic, EndpointRequestResponse)]] =
+  ): Stream[Task, Either[EndpointRequestFailureWithSymbols, (EndpointRequestSymbolic, EndpointRequestResponse)]] =
     requestStream
       .evalMapAccumulate(Chain.empty[EndpointResponse]) { (oldHistory, requestSymbolic) =>
         val request = resolveRequestSymbols(requestSymbolic, oldHistory)
@@ -29,7 +29,7 @@ class ValidatedStreamFromRequestStream(requestExecutor: EndpointRequestExecutor)
           .execute(session, request)
           .map { response =>
             val newHistory = oldHistory :+ response.response
-            newHistory -> (requestSymbolic -> response).asRight[HttpClientExceptionWithSymbols]
+            newHistory -> (requestSymbolic -> response).asRight[EndpointRequestFailureWithSymbols]
           }
           .valueOr(error => oldHistory -> error.withSymbols(requestSymbolic).asLeft)
       }
@@ -38,10 +38,10 @@ class ValidatedStreamFromRequestStream(requestExecutor: EndpointRequestExecutor)
   private def validationStream(schema: ApplicationSchema)(
     responseStream: Stream[
       Task,
-      Either[HttpClientExceptionWithSymbols, (EndpointRequestSymbolic, EndpointRequestResponse)]
+      Either[EndpointRequestFailureWithSymbols, (EndpointRequestSymbolic, EndpointRequestResponse)]
     ]
-  ): Stream[Task, Either[HttpClientExceptionWithSymbols, ValidatedRequestResponseWithSymbols]] =
-    ResponseValidator.streamEither(schema, responseStream)(_._2)
+  ): Stream[Task, Either[EndpointRequestFailureWithSymbols, ValidatedRequestResponseWithSymbols]] =
+    ResponseValidator.stream(schema, responseStream)(_.cause, _._2)
       .map(_.map {
         case ((requestSymbolic, _), validatedResponse) =>
           ValidatedRequestResponseWithSymbols(

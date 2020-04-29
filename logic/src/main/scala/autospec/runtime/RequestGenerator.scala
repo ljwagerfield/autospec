@@ -5,6 +5,7 @@ import autospec.SchemaSymbols.{Predicate => SP}
 import autospec.common.FunctorExtensions._
 import autospec.common.MathUtils._
 import autospec.runtime.RequestGenerator._
+import autospec.runtime.exceptions.EndpointRequestFailure
 import autospec.runtime.resolvers.IntermediateSymbolResolver
 import autospec.schema._
 import autospec.{IntermediateSymbols => I, SchemaSymbols => S}
@@ -13,7 +14,6 @@ import cats.implicits._
 import io.circe.Json
 import monix.eval.Task
 import fs2.Stream
-import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.immutable.Queue
 import scala.util.Random
@@ -25,23 +25,19 @@ import scala.util.Random
   * doing so in as few requests as possible (this is the most challenging part of AutoSpec, and always needs improving).
   */
 class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
-  private lazy val logger: Logger = LoggerFactory.getLogger(getClass)
 
-  def stream(session: Session): Stream[Task, EndpointRequestResponse] =
+  def stream(session: Session): Stream[Task, Either[EndpointRequestFailure, EndpointRequestResponse]] =
     Stream.unfoldEval(initialState) { state =>
       nextRequest(session.schema, state).traverse {
         case Result(opportunities, request) =>
           requestExecutor
             .execute(session, request)
-            .map(response => Some(response) -> state.append(opportunities, response))
-            .leftMap { e =>
-              logger.info(
-                s"Skipping request that failed after several retry attempts (${e.request})"
-              )
-            }
-            .getOrElse(None -> state)
+            .fold(
+              e => e.asLeft  -> state,
+              r => r.asRight -> state.append(opportunities, r)
+            )
       }
-    }.collect { case Some(response) => response }
+    }
 
   private def nextRequest(schema: ApplicationSchema, state: State): Option[Result] = {
     val callableEndpoints = getCallableEndpoints(schema, state)
