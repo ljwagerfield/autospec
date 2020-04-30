@@ -14,8 +14,6 @@ import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
 
-import scala.util.Random
-
 class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
   private var state               = List.empty[Int]
   implicit val timer: Timer[Task] = Task.timer(scheduler)
@@ -27,10 +25,7 @@ class RestApi()(implicit scheduler: Scheduler) extends Http4sDsl[Task] {
     case DELETE -> Root / "foos" / value =>
       val valueInt = value.toInt
       state = state.filterNot(_ === valueInt)
-      if (Random.nextInt(1) == 0)
-        RequestTimeout() // Simulate network errors.
-      else
-        NoContent()
+      NoContent()
 
     case body @ POST -> Root / "foos" =>
       {

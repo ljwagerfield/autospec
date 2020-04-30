@@ -49,6 +49,9 @@ object FunctorExtensions {
     def toNEL: Option[NonEmptyList[A]] =
       NonEmptyList.fromList(list)
 
+    def one: Option[A] =
+      list.headOption.filter(_ => list.length === 1)
+
   }
 
   implicit class RichChain[A](val value: Chain[A]) extends AnyVal {
