@@ -1,7 +1,7 @@
 package autospec.schema
 
-import autospec.SchemaSymbols.{Predicate => SP}
-import autospec.{SchemaSymbols => S}
+import autospec.LocalSchemaSymbols.{Predicate => SP}
+import autospec.{LocalSchemaSymbols => S}
 
 object SymbolExtensions {
 

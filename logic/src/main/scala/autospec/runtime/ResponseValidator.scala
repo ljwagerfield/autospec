@@ -7,7 +7,7 @@ import autospec.runtime.exceptions.EndpointRequestFailure
 import autospec.runtime.resolvers.{RuntimeSymbolResolver, SymbolConverter}
 import autospec.schema.SymbolExtensions._
 import autospec.schema.{ApplicationSchema, ConditionIdWithProvenance, ConditionIdWithState, EndpointDefinition}
-import autospec.{RuntimeSymbolsExecuted => RE, SchemaSymbols => S}
+import autospec.{RuntimeSymbolsExecuted => RE, LocalSchemaSymbols => S}
 import cats.data.Chain
 import cats.implicits._
 import fs2.Stream

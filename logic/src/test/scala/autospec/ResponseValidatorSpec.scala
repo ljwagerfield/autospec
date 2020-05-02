@@ -3,10 +3,10 @@ package autospec
 import autospec.ResponseValidatorSpecBase.TestInstruction.{RunAssertion, SimulateRequestFailure}
 import autospec.RuntimeSymbolsIndexed.Predicate._
 import autospec.RuntimeSymbolsIndexed._
-import autospec.SchemaSymbols.{Predicate => SP}
+import autospec.LocalSchemaSymbols.{Predicate => SP}
 import autospec.runtime.EndpointRequestSymbolic
 import autospec.schema.{EndpointDefinition, EndpointId, EndpointParameterName}
-import autospec.{SchemaSymbols => S}
+import autospec.{LocalSchemaSymbols => S}
 
 import scala.collection.immutable.{Map => SMap}
 

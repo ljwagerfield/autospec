@@ -1,6 +1,6 @@
 package autospec.demo
 
-import autospec.SchemaSymbols._
+import autospec.LocalSchemaSymbols._
 import autospec.schema._
 import scala.collection.immutable.{Map => SMap}
 

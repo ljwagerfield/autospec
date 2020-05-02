@@ -1,6 +1,6 @@
 package autospec.schema
 
-import autospec.SchemaSymbols.Predicate
+import autospec.LocalSchemaSymbols.Predicate
 
 case class ApplicationSchema(apis: List[ApiDefinition], endpoints: List[EndpointDefinition]) {
   val apiMap: Map[ApiId, ApiDefinition]                = apis.map(x => x.id      -> x).toMap

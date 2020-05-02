@@ -8,7 +8,7 @@ import autospec.runtime.RequestGenerator.{RequestCandidate, WithState, _}
 import autospec.runtime.exceptions.EndpointRequestFailure
 import autospec.runtime.resolvers.{IntermediateSymbolResolver, SymbolConverter}
 import autospec.schema._
-import autospec.{IntermediateSymbols => I, SchemaSymbols => S}
+import autospec.{IntermediateSymbols => I, LocalSchemaSymbols => S}
 import cats.data.{NonEmptyList, OptionT, StateT}
 import cats.implicits._
 import cats.~>

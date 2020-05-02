@@ -2,7 +2,7 @@ package autospec.runtime
 
 import cats.implicits._
 import autospec.RuntimeSymbolsIndexed.{ResponseBody, StatusCode}
-import autospec.{CommonSymbols, RuntimeSymbolsIndexed => R, SchemaSymbols => S}
+import autospec.{CommonSymbols, RuntimeSymbolsIndexed => R, LocalSchemaSymbols => S}
 
 trait SymbolPrinter {
   def print(symbol: S.Symbol): String

@@ -1,6 +1,6 @@
 package autospec
 
-import autospec.SchemaSymbols._
+import autospec.LocalSchemaSymbols._
 import autospec.macros.ClientMacros
 import autospec.runtime.EndpointRequestSymbolic
 import autospec.schema._

@@ -63,21 +63,27 @@ object BaseSymbols extends CommonSymbols {
   // ------------------------------------
 }
 
-object SchemaSymbols extends CommonSymbols {
-  type OwnSymbols = SchemaSymbol
+trait EndpointLike[A] {
+  def endpointId: EndpointId
+  def parameters: SMap[EndpointParameterName, A]
+  def evaluateAfterExecution: Boolean // Should be set to 'false' for preconditions. If 'true' will not be checked.
+}
 
-  sealed trait SchemaSymbol extends Symbol
+object LocalSchemaSymbols extends CommonSymbols {
+  type OwnSymbols = LocalSchemaSymbol
 
-  case class Parameter(name: EndpointParameterName) extends SchemaSymbol
-  case object ResponseBody                          extends SchemaSymbol
-  case object StatusCode                            extends SchemaSymbol
+  sealed trait LocalSchemaSymbol extends Symbol
 
-  // 'evaluateAfterExecution' should be set to 'false' for preconditions. If set to 'true' it will never be checked.
+  case class Parameter(name: EndpointParameterName) extends LocalSchemaSymbol
+  case object ResponseBody                          extends LocalSchemaSymbol
+  case object StatusCode                            extends LocalSchemaSymbol
+
   case class Endpoint(
     endpointId: EndpointId,
     parameters: SMap[EndpointParameterName, Symbol],
     evaluateAfterExecution: Boolean
-  ) extends SchemaSymbol
+  ) extends LocalSchemaSymbol
+    with EndpointLike[Symbol]
 
   object Parameter {
 
@@ -85,6 +91,20 @@ object SchemaSymbols extends CommonSymbols {
       Parameter(EndpointParameterName(name))
 
   }
+
+}
+
+object GlobalSchemaSymbols extends CommonSymbols {
+  type OwnSymbols = GlobalSchemaSymbol
+
+  sealed trait GlobalSchemaSymbol extends Symbol
+
+  case class Endpoint(
+    endpointId: EndpointId,
+    parameters: SMap[EndpointParameterName, Symbol],
+    evaluateAfterExecution: Boolean
+  ) extends GlobalSchemaSymbol
+    with EndpointLike[Symbol]
 
 }
 

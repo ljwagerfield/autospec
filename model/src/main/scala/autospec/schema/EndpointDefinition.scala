@@ -1,8 +1,8 @@
 package autospec.schema
 
 import io.circe.Json
-import autospec.SchemaSymbols.Predicate.{Equals, Or}
-import autospec.SchemaSymbols.{Endpoint, Literal, Predicate, StatusCode}
+import autospec.LocalSchemaSymbols.Predicate.{Equals, Or}
+import autospec.LocalSchemaSymbols.{Endpoint, Literal, Predicate, StatusCode}
 import autospec.schema.SymbolExtensions._
 
 case class EndpointDefinition(
