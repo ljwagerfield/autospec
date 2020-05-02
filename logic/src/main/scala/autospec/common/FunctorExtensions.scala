@@ -1,6 +1,6 @@
 package autospec.common
 
-import cats.data.{Chain, EitherT, NonEmptyList}
+import cats.data.{Chain, EitherT}
 import cats.implicits._
 import cats.{Alternative, Bifoldable, FlatMap, Foldable, Functor, Monad, Monoid}
 import monix.eval.Task
@@ -45,9 +45,6 @@ object FunctorExtensions {
   }
 
   implicit class RichList[A](val list: List[A]) extends AnyVal {
-
-    def toNEL: Option[NonEmptyList[A]] =
-      NonEmptyList.fromList(list)
 
     def one: Option[A] =
       list.headOption.filter(_ => list.length === 1)

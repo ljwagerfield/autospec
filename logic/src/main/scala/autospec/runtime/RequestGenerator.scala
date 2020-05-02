@@ -27,8 +27,6 @@ import scala.util.Random
   */
 class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
 
-  private type ParamResolution[A] = StateT[List, Map[EndpointParameterName, Json], A]
-
   def stream(session: Session): Stream[Task, Either[EndpointRequestFailure, EndpointRequestResponse]] =
     Stream.unfoldEval(initialState) { state =>
       nextRequest(session.schema, state).traverse {
@@ -46,38 +44,68 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
     val callableEndpoints = getCallableEndpoints(schema, state)
     val chosenEndpointOpt = weightedRandom(callableEndpoints)(x => endpointWeight(state, x.endpointId))
     chosenEndpointOpt.map { chosenEndpoint =>
-      Result(
-        Opportunities(
-          possibleRequests = callableEndpoints.map(_.endpointId).toSet
-        ),
+      val chosenRequest =
         chosenEndpoint
           .possibleRequests
           .toList(
             // TODO: bias these based on how frequently available they are... but don't favour endpoints with more paramaters any more than those with equal! Currently we're just randomly selecting.
             Random.nextInt(chosenEndpoint.possibleRequests.size)
           )
+
+      Result(
+        Opportunities(
+          possibleRequests = callableEndpoints.map(_.endpointId).toSet
+        ),
+        chosenRequest.request
       )
+
     }
   }
 
-  private def getCallableEndpoints(schema: ApplicationSchema, state: State): List[CallableEndpoint] =
+  private def getCallableEndpoints(schema: ApplicationSchema, state: State): List[EndpointCandidate] =
     schema.endpoints.flatMap(getCallableEndpoint(_, state))
 
-  private def getCallableEndpoint(endpoint: EndpointDefinition, state: State): Option[CallableEndpoint] =
-    getRequestCandidates(endpoint, state).toNEL.map(
-      CallableEndpoint(endpoint.id, _)
+  private def getCallableEndpoint(endpoint: EndpointDefinition, state: State): Option[EndpointCandidate] =
+    getRequestCandidates(endpoint, state).toNel.map(
+      EndpointCandidate(endpoint.id, _)
     )
 
-  private def getRequestCandidates(endpoint: EndpointDefinition, state: State): List[EndpointRequest] =
-    generateParamCombinations(endpoint, state).run(Map.empty).flatMap {
-      case (paramCombination, partiallyResolvedPredicates) =>
-        val resolvedParamNames = paramCombination.keySet
+  private def getRequestCandidates(endpoint: EndpointDefinition, state: State): List[RequestCandidate] =
+    generateParamCombinations(endpoint, state).flatMap {
+      case (paramCombinations, partiallyResolvedPredicates) =>
+        val paramCombinationsThatSatisfyPredicates =
+          paramCombinations.filter { params =>
+            partiallyResolvedPredicates.forall(predicate => resolvePredicate(predicate, params.toMap))
+          }
+
+        paramCombinationsThatSatisfyPredicates.map { params =>
+          RequestCandidate(
+            EndpointRequest(
+              endpoint.id,
+              params.toMap
+            ),
+            Nil
+          )
+        }
+    }
+
+  private def generateParamCombinations(
+    endpoint: EndpointDefinition,
+    state: State
+  ): List[(NonEmptyList[List[(EndpointParameterName, Json)]], List[I.Predicate])] =
+    generatePartialParamCombinationsFromEndpointReferences(endpoint, state).run(Map.empty).map {
+      case (partialParamCombination, partiallyResolvedPredicates) =>
+        val resolvedParamNames = partialParamCombination.keySet
         val unresolvedParams   = endpoint.parameters.filterNot(x => resolvedParamNames.contains(x.name))
 
-        val paramsFromEndpoints = paramCombination.toList.map(_ :: Nil)
+        // Each sublist represents the set of all possible values for a single parameter name.
+        // For endpoint params, there is only one value per param, as the outer map to this comment is already mapping
+        // over each endpoint param combination individually (since the partially resolved predicates are unique per
+        // endpoint param combination).
+        val paramsFromEndpoints = partialParamCombination.toList.map(_ :: Nil)
         val paramsFromRandom = unresolvedParams
           .map { parameter =>
-            getParameterDomain(endpoint.id, parameter.`type`).map(parameterValue => parameter.name -> parameterValue)
+            getParameterRange(endpoint.id, parameter.`type`).map(parameterValue => parameter.name -> parameterValue)
           }
 
         val paramCombinations =
@@ -90,20 +118,10 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
             .fromList(paramCombinations)
             .getOrElse(NonEmptyList.one(Nil))
 
-        val paramCombinationsThatSatisfyPredicates =
-          paramCombinationsOrNoParams.filter { params =>
-            partiallyResolvedPredicates.forall(predicate => resolvePredicate(predicate, params.toMap))
-          }
-
-        paramCombinationsThatSatisfyPredicates.map { params =>
-          EndpointRequest(
-            endpoint.id,
-            params.toMap
-          )
-        }
+        paramCombinationsOrNoParams -> partiallyResolvedPredicates
     }
 
-  private def generateParamCombinations(
+  private def generatePartialParamCombinationsFromEndpointReferences(
     endpoint: EndpointDefinition,
     state: State
   ): ParamResolution[List[I.Predicate]] =
@@ -137,10 +155,7 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
     state: State
   ): ParamResolution[I.Literal] = {
     val previousRequests = state.responses.getOrElse(endpoint.endpointId, Queue.empty)
-    val paramCombinations: StateT[List, Map[EndpointParameterName, Json], Map[
-      EndpointParameterName,
-      Either[EndpointParameterName, Json]
-    ]] =
+    val paramCombinations =
       endpoint.parameters.traverse {
         case x: S.Endpoint  => resolveEndpointSymbol(x, state).map(_.value.asRight[EndpointParameterName])
         case x: S.Parameter => x.name.asLeft[Json].pure[ParamResolution]
@@ -201,7 +216,7 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
   // Returns a 'meaningfully sampled set' of all possible values this parameter can be. For boolean this is easy:
   // always return true and false. However, all other types have a much larger space, so we have to return a sample
   // that ideally represents meaningful boundaries.
-  private def getParameterDomain(endpointId: EndpointId, parameterType: EndpointParameterType): List[Json] = {
+  private def getParameterRange(endpointId: EndpointId, parameterType: EndpointParameterType): List[Json] = {
     import EndpointParameterType._
     // Since we're checking historical availability of these parameters, we need to use the same set of parameters,
     // and not completely random ones. This is because each 'possible request' that gets generated in this round is
@@ -235,7 +250,7 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
         )
       case Object(fields) =>
         cartesianProduct(
-          fields.view.mapValues(x => getParameterDomain(endpointId, x)).toMap
+          fields.view.mapValues(x => getParameterRange(endpointId, x)).toMap
         )
           .map(Json.fromFields)
       case Array(elementTypes) =>
@@ -244,7 +259,7 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
             .fromList(elementTypes)
             .getOrElse(NonEmptyList.of(Boolean, String, Int32))
             .toList
-            .flatMap(getParameterDomain(endpointId, _))
+            .flatMap(getParameterRange(endpointId, _))
 
         val padding = 3 - values.size
 
@@ -300,7 +315,14 @@ object RequestGenerator {
 
   private val initialState = State(Queue.empty, Queue.empty, 0)
 
-  private case class CallableEndpoint(endpointId: EndpointId, possibleRequests: NonEmptyList[EndpointRequest])
+  private type ParamResolution[A] = StateT[List, Map[EndpointParameterName, Json], A]
+
+  private case class EndpointCandidate(endpointId: EndpointId, possibleRequests: NonEmptyList[RequestCandidate])
+
+  private case class RequestCandidate(
+    request: EndpointRequest,
+    postconditionChecks: List[EndpointRequest]
+  )
 
   private case class Opportunities(possibleRequests: Set[EndpointId])
 

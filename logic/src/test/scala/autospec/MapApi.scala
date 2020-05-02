@@ -37,11 +37,11 @@ object MapApi {
         Nil,
         List(
           Predicate.Equals(
-            Map(
+            ValueAt(
               Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-              Parameter(EndpointParameterName("key"))
+              Parameter("key")
             ),
-            Parameter(EndpointParameterName("value"))
+            Parameter("value")
           ),
           Predicate.Equals(
             StatusCode,

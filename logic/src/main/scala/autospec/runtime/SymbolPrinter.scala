@@ -41,8 +41,9 @@ object ScalaSymbolPrinter extends SymbolPrinter {
     symbol match {
       case x: family.Literal            => x.value.toString()
       case x: family.LambdaParameter    => if (x.distance === 0) "_" else symbol.toString
-      case x: family.Map                => s"${p(x.symbol)}[${p(x.path)}]"
-      case x: family.FlatMap            => p(family.Flatten(family.Map(x.symbol, x.path)))
+      case x: family.ValueAt            => s"${p(x.symbol)}(${p(x.key)})"
+      case x: family.Map                => s"${p(x.symbol)}.map(${p(x.function)})"
+      case x: family.FlatMap            => s"${p(x.symbol)}.flatMap(${p(x.function)})"
       case x: family.Flatten            => s"${p(x.symbol)}.flatten"
       case x: family.Find               => s"${p(x.symbol)}.find(${p(x.predicate)})"
       case x: family.Count              => s"${p(x.symbol)}.count"

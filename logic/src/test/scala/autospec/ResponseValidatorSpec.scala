@@ -308,7 +308,7 @@ class ResponseValidatorSpec extends ResponseValidatorSpecBase {
               S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
               S.Subtract(
                 S.Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = false),
-                S.Parameter(EndpointParameterName("value"))
+                S.Parameter("value")
               )
             )
           )

@@ -35,7 +35,7 @@ object SetApi {
         List(
           Predicate.Contains(
             Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-            Parameter(EndpointParameterName("value"))
+            Parameter("value")
           ),
           Predicate.Equals(
             StatusCode,
@@ -63,7 +63,7 @@ object SetApi {
           Predicate.Not(
             Predicate.Contains(
               Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-              Parameter(EndpointParameterName("value"))
+              Parameter("value")
             )
           ),
           Predicate.Equals(
@@ -91,7 +91,7 @@ object SetApi {
           Precondition(
             Predicate.Contains(
               Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
-              Parameter(EndpointParameterName("value"))
+              Parameter("value")
             ),
             404
           )
@@ -100,7 +100,7 @@ object SetApi {
           Predicate.Not(
             Predicate.Contains(
               Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-              Parameter(EndpointParameterName("value"))
+              Parameter("value")
             )
           ),
           Predicate.Equals(

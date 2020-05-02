@@ -42,7 +42,7 @@ object SetPairApi {
         List(
           Predicate.Contains(
             Endpoint(EndpointId("listA"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-            Parameter(EndpointParameterName("value"))
+            Parameter("value")
           ),
           Predicate.Equals(
             StatusCode,
@@ -69,7 +69,7 @@ object SetPairApi {
         List(
           Predicate.Contains(
             Endpoint(EndpointId("listB"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-            Parameter(EndpointParameterName("value"))
+            Parameter("value")
           ),
           Predicate.Equals(
             StatusCode,

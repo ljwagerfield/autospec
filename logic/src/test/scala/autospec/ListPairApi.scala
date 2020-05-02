@@ -39,7 +39,7 @@ object ListPairApi {
             // IMPORTANT: Some tests rely on this condition performing BOTH a reverse and forward lookup, so do not change.
             Concat(
               Endpoint(EndpointId("listA"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
-              Parameter(EndpointParameterName("value"))
+              Parameter("value")
             ),
             Endpoint(EndpointId("listA"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true)
           ),
@@ -69,7 +69,7 @@ object ListPairApi {
           Predicate.Not(
             Predicate.Contains(
               Endpoint(EndpointId("listA"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-              Parameter(EndpointParameterName("value"))
+              Parameter("value")
             )
           ),
           Predicate.Equals(
@@ -116,7 +116,7 @@ object ListPairApi {
             // "treat endpoints that have a postcondition that contains both an resolvable reverse lookup and an unresolvable forward lookup as mutating"
             Concat(
               Endpoint(EndpointId("listB"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
-              Parameter(EndpointParameterName("value"))
+              Parameter("value")
             ),
             Endpoint(EndpointId("listB"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true)
           ),
@@ -146,7 +146,7 @@ object ListPairApi {
           Predicate.Not(
             Predicate.Contains(
               Endpoint(EndpointId("listB"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-              Parameter(EndpointParameterName("value"))
+              Parameter("value")
             )
           ),
           Predicate.Equals(

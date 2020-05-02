@@ -45,8 +45,13 @@ object BaseSymbolResolver {
     symbol match {
       case Literal(value)            => value
       case LambdaParameter(distance) => lambdaParameterStack(distance)
-      case Map(symbol, path)         => toVector(resolve(path)).foldLeft(resolve(symbol))(mapJson)
-      case FlatMap(symbol, path)     => resolve(Flatten(Map(symbol, path)))
+      case ValueAt(symbol, path)     => toVector(resolve(path)).foldLeft(resolve(symbol))(valueAt)
+      case Map(symbol, function) =>
+        Json.fromValues(
+          toVector(resolve(symbol))
+            .map(json => resolveSymbol(json :: lambdaParameterStack, function))
+        )
+      case FlatMap(symbol, function) => resolve(Flatten(Map(symbol, function)))
       case Flatten(symbol)           => flatten(resolve(symbol))
       case Count(symbol)             => Json.fromInt(toVector(resolve(symbol)).size)
       case Distinct(symbol)          => Json.fromValues(toVector(resolve(symbol)).distinct)
@@ -77,12 +82,18 @@ object BaseSymbolResolver {
       case Subtract(left, right) =>
         val leftJson  = resolve(left)
         val rightJson = resolve(right)
+
         if (leftJson.isArray)
           Json.fromValues(toVector(leftJson).filterNot(_ === rightJson))
         else
-          (leftJson.asNumberNullAsZero, rightJson.asNumberNullAsZero)
-            .mapN(_ - _)
-            .map(Json.fromJsonNumber)
+          (leftJson.asObject, toStringIfPrimitive(rightJson))
+            .mapN(_.remove(_))
+            .map(Json.fromJsonObject)
+            .orElse {
+              (leftJson.asNumberNullAsZero, rightJson.asNumberNullAsZero)
+                .mapN(_ - _)
+                .map(Json.fromJsonNumber)
+            }
             .getOrElse(
               Json.fromString(
                 "NaN"
@@ -113,20 +124,30 @@ object BaseSymbolResolver {
     }
   }
 
+  private def toStringIfPrimitive(json: Json): Option[String] =
+    json.fold(
+      None,
+      _.toString.some,
+      _.toString.some,
+      _.some,
+      _ => None,
+      _ => None
+    )
+
   private def toStringNoQuotes(json: Json): String =
     json.asString.getOrElse(json.toString)
 
   // We use 'Json.Null' instead of 'None: Option[Json]' since optionality may occur _within_ JSON structures too, and
   // we can only use 'Json.Null' there. E.g. 'Map' operations cannot change the size of an array, and since objects in
   // arrays may be different shapes, 'Map' operations may need to yield 'Json.Null' for some elements but not others.
-  private def mapJson(json: Json, key: Json): Json =
+  private def valueAt(json: Json, key: Json): Json =
     json.fold(
       Json.Null,
       _ => Json.Null,
       _ => Json.Null,
       _ => Json.Null,
-      x => Json.fromValues(x.map(mapJson(_, key))),
-      x => x(key.toString()).getOrElse(Json.Null) // Todo: check if we can access array elements this way.
+      _ => Json.Null,
+      x => x(toStringNoQuotes(key)).getOrElse(Json.Null)
     )
 
   private def flatten(json: Json): Json =
@@ -136,6 +157,20 @@ object BaseSymbolResolver {
       .getOrElse(json)
 
   private def toVector(json: Json): Vector[Json] =
-    json.asArray.getOrElse(if (json.isNull) Vector.empty else Vector(json))
+    json.fold(
+      Vector.empty,
+      _ => Vector(json),
+      _ => Vector(json),
+      _ => Vector(json),
+      identity,
+      x =>
+        x.toVector.map {
+          case (key, value) =>
+            Json.obj(
+              "key"   -> Json.fromString(key),
+              "value" -> value
+            )
+        }
+    )
 
 }

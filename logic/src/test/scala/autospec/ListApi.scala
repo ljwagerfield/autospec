@@ -35,7 +35,7 @@ object ListApi {
           Predicate.Equals(
             Concat(
               Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = false),
-              Parameter(EndpointParameterName("value"))
+              Parameter("value")
             ),
             Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true)
           ),
@@ -65,7 +65,7 @@ object ListApi {
           Predicate.Not(
             Predicate.Contains(
               Endpoint(EndpointId("list"), scala.collection.immutable.Map.empty, evaluateAfterExecution = true),
-              Parameter(EndpointParameterName("value"))
+              Parameter("value")
             )
           ),
           Predicate.Equals(

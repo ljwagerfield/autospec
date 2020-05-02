@@ -15,8 +15,9 @@ object SymbolExtensions {
         case x @ S.ResponseBody                => List(x)
         case x @ S.StatusCode                  => List(x)
         case x: S.Endpoint                     => x :: x.parameters.values.toList.flatMap(_.toList)
-        case x @ S.Map(symbol, _)              => x :: symbol.toList
-        case x @ S.FlatMap(symbol, _)          => x :: symbol.toList
+        case x @ S.ValueAt(symbol, key)        => x :: symbol.toList ::: key.toList
+        case x @ S.Map(symbol, function)       => x :: symbol.toList ::: function.toList
+        case x @ S.FlatMap(symbol, function)   => x :: symbol.toList ::: function.toList
         case x @ S.Flatten(symbol)             => x :: symbol.toList
         case x @ S.Find(symbol, predicate)     => x :: symbol.toList ::: predicate.toList
         case x @ S.Count(symbol)               => x :: symbol.toList

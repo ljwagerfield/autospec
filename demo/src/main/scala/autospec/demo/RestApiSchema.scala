@@ -18,33 +18,73 @@ object RestApiSchema {
       Nil,
       List(
         Predicate.Equals(
-          Count(Distinct(ResponseBody)),
-          Count(ResponseBody)
-        ),
-        Predicate.Equals(
           Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = false),
           ResponseBody
         )
       )
     ) ::
       EndpointDefinition(
+        EndpointId("get"),
+        apiId,
+        HttpMethod.Get,
+        "/foos/:key",
+        List(
+          EndpointParameter(
+            EndpointParameterName("key"),
+            EndpointParameterType.String,
+            EndpointParameterLocation.Path,
+            EndpointParameterSerialization.ToString("text/plain")
+          )
+        ),
+        List(
+          Precondition(
+            Predicate.Contains( // Todo: Create a ContainsKey to make this easier
+              Map(
+                Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
+                ValueAt(
+                  LambdaParameter(0),
+                  Literal("key")
+                )
+              ),
+              Parameter("key")
+            ),
+            404
+          )
+        ),
+        List(
+          Predicate.Equals(
+            StatusCode,
+            Literal(200)
+          )
+        )
+      ) ::
+      EndpointDefinition(
         EndpointId("add"),
         apiId,
         HttpMethod.Post,
-        "/foos",
+        "/foos/:key",
         List(
           EndpointParameter(
+            EndpointParameterName("key"),
+            EndpointParameterType.String,
+            EndpointParameterLocation.Path,
+            EndpointParameterSerialization.ToString("text/plain")
+          ),
+          EndpointParameter(
             EndpointParameterName("value"),
-            EndpointParameterType.Int32,
+            EndpointParameterType.String,
             EndpointParameterLocation.Body,
             EndpointParameterSerialization.ToString("text/plain")
           )
         ),
         Nil,
         List(
-          Predicate.Contains(
-            Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
-            Parameter(EndpointParameterName("value"))
+          Predicate.Equals(
+            ValueAt(
+              Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
+              Parameter("key")
+            ),
+            Parameter("value")
           ),
           Predicate.Equals(
             StatusCode,
@@ -56,11 +96,11 @@ object RestApiSchema {
         EndpointId("delete"),
         apiId,
         HttpMethod.Delete,
-        "/foos/:value",
+        "/foos/:key",
         List(
           EndpointParameter(
-            EndpointParameterName("value"),
-            EndpointParameterType.Int32,
+            EndpointParameterName("key"),
+            EndpointParameterType.String,
             EndpointParameterLocation.Path,
             EndpointParameterSerialization.ToString("text/plain")
           )
@@ -68,16 +108,15 @@ object RestApiSchema {
         Nil,
         List(
           Predicate.Not(
-            Predicate.Contains(
-              Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
-              Parameter(EndpointParameterName("value"))
-            )
-          ),
-          Predicate.Equals(
-            Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
-            Subtract(
-              Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = false),
-              Parameter(EndpointParameterName("value"))
+            Predicate.Contains( // Todo: Create a ContainsKey to make this easier
+              Map(
+                Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
+                ValueAt(
+                  LambdaParameter(0),
+                  Literal("key")
+                )
+              ),
+              Parameter("key")
             )
           ),
           Predicate.Equals(

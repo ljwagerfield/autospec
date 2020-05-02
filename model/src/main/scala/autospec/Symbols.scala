@@ -17,9 +17,10 @@ sealed trait CommonSymbols {
     extends Symbol // 0 is current lambda's param, 1 is parent, 2 is grandparent, etc. Used with things like 'Exists'
 
   // Recursive Symbols
-  case class Map(symbol: Symbol, path: Symbol)                       extends Symbol
+  case class ValueAt(symbol: Symbol, key: Symbol)                    extends Symbol // If key is an array, will be traversed.
+  case class Map(symbol: Symbol, function: Symbol)                   extends Symbol
   case class Flatten(symbol: Symbol)                                 extends Symbol
-  case class FlatMap(symbol: Symbol, path: Symbol)                   extends Symbol
+  case class FlatMap(symbol: Symbol, function: Symbol)               extends Symbol
   case class Find(symbol: Symbol, predicate: Predicate)              extends Symbol
   case class Count(symbol: Symbol)                                   extends Symbol
   case class Add(left: Symbol, right: Symbol)                        extends Symbol
@@ -44,6 +45,9 @@ sealed trait CommonSymbols {
 
     def apply(value: Int): Literal =
       Literal(Json.fromInt(value))
+
+    def apply(value: String): Literal =
+      Literal(Json.fromString(value))
 
   }
 
@@ -74,6 +78,13 @@ object SchemaSymbols extends CommonSymbols {
     parameters: SMap[EndpointParameterName, Symbol],
     evaluateAfterExecution: Boolean
   ) extends SchemaSymbol
+
+  object Parameter {
+
+    def apply(name: String): Parameter =
+      Parameter(EndpointParameterName(name))
+
+  }
 
 }
 
