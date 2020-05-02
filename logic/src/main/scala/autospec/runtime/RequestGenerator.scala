@@ -1,20 +1,20 @@
 package autospec.runtime
 
-import autospec.common.StringExtensions._
+import alleycats.std.all._
 import autospec.common.FunctorExtensions._
 import autospec.common.MathUtils._
-import autospec.runtime.RequestGenerator._
+import autospec.common.StringExtensions._
+import autospec.runtime.RequestGenerator.{RequestCandidate, WithState, _}
 import autospec.runtime.exceptions.EndpointRequestFailure
 import autospec.runtime.resolvers.{IntermediateSymbolResolver, SymbolConverter}
 import autospec.schema._
 import autospec.{IntermediateSymbols => I, SchemaSymbols => S}
-import cats.data.{NonEmptyList, StateT}
+import cats.data.{NonEmptyList, OptionT, StateT}
 import cats.implicits._
-import alleycats.std.all._
 import cats.~>
+import fs2.Stream
 import io.circe.Json
 import monix.eval.Task
-import fs2.Stream
 
 import scala.collection.immutable.Queue
 import scala.util.Random
@@ -27,40 +27,58 @@ import scala.util.Random
   */
 class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
 
-  def stream(session: Session): Stream[Task, Either[EndpointRequestFailure, EndpointRequestResponse]] =
+  def stream(session: Session): Stream[Task, Either[EndpointRequestFailure, EndpointRequestResponse]] = {
+    type F[A] = OptionT[Task, A]
+
     Stream.unfoldEval(initialState) { state =>
-      nextRequest(session.schema, state).traverse {
-        case Result(opportunities, request) =>
-          requestExecutor
-            .execute(session, request)
-            .fold(
-              e => e.asLeft  -> state,
-              r => r.asRight -> state.append(opportunities, r)
+      nextRequest(session.schema)
+        .mapK(λ[Option ~> F](OptionT.fromOption[Task](_)))
+        .flatMap { request =>
+          StateT
+            .liftF(
+              requestExecutor
+                .execute(session, request)
+                .value
             )
-      }
-    }
-
-  private def nextRequest(schema: ApplicationSchema, state: State): Option[Result] = {
-    val callableEndpoints = getCallableEndpoints(schema, state)
-    val chosenEndpointOpt = weightedRandom(callableEndpoints)(x => endpointWeight(state, x.endpointId))
-    chosenEndpointOpt.map { chosenEndpoint =>
-      val chosenRequest =
-        chosenEndpoint
-          .possibleRequests
-          .toList(
-            // TODO: bias these based on how frequently available they are... but don't favour endpoints with more paramaters any more than those with equal! Currently we're just randomly selecting.
-            Random.nextInt(chosenEndpoint.possibleRequests.size)
-          )
-
-      Result(
-        Opportunities(
-          possibleRequests = callableEndpoints.map(_.endpointId).toSet
-        ),
-        chosenRequest.request
-      )
-
+            .mapK(λ[Task ~> F](OptionT.liftF(_)))
+        }
+        .transformTap(_.recordResponse(_))
+        .run(state)
+        .map(_.swap)
+        .value
     }
   }
+
+  private def nextRequest(schema: ApplicationSchema): WithState[EndpointRequest] =
+    for {
+      callableEndpoints <- StateT.inspect[Option, State, List[EndpointCandidate]](getCallableEndpoints(schema, _))
+      nextRequest       <- nextRequestPredetermined.orElse(nextRequestRandom(callableEndpoints))
+      opportunities      = Opportunities(callableEndpoints.map(_.endpointId).toSet)
+      _                 <- StateT.modify[Option, State](_.recordOpportunities(opportunities))
+    } yield nextRequest
+
+  private def nextRequestPredetermined: WithState[EndpointRequest] =
+    // Important: call the predetermined requests even if they're not in the set we discovered for this round, as they
+    // help us infer relationships between requests based on postconditions, rather than just preconditions, which is
+    // what the preceding discovery phase does. E.g. 'createFoo' has 'getFoo(x)' as a postcondition, but 'getFoo(x)'
+    // would never be discovered by itself. But by calling 'getFoo(x)' we now have a range for params bound to 'getFoo'.
+    StateT(_.dequeuePredeterminedRequest())
+
+  private def nextRequestRandom(callableEndpoints: List[EndpointCandidate]): WithState[EndpointRequest] =
+    StateT { state =>
+      val chosenEndpointOpt = weightedRandom(callableEndpoints)(x => endpointWeight(state, x.endpointId))
+      chosenEndpointOpt.map { chosenEndpoint =>
+        val RequestCandidate(nextRequest, postconditionChecks) =
+          chosenEndpoint
+            .possibleRequests
+            .toList(
+              // TODO: bias these based on how frequently available they are... but don't favour endpoints with more paramaters any more than those with equal! Currently we're just randomly selecting.
+              Random.nextInt(chosenEndpoint.possibleRequests.size)
+            )
+
+        state.enqueuePredeterminedRequests(postconditionChecks) -> nextRequest
+      }
+    }
 
   private def getCallableEndpoints(schema: ApplicationSchema, state: State): List[EndpointCandidate] =
     schema.endpoints.flatMap(getCallableEndpoint(_, state))
@@ -79,12 +97,11 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
           }
 
         paramCombinationsThatSatisfyPredicates.map { params =>
+          val currentRequest        = EndpointRequest(endpoint.id, params.toMap)
+          val postconditionRequests = getPostconditionRequests
           RequestCandidate(
-            EndpointRequest(
-              endpoint.id,
-              params.toMap
-            ),
-            Nil
+            currentRequest,
+            postconditionRequests
           )
         }
     }
@@ -124,7 +141,7 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
   private def generatePartialParamCombinationsFromEndpointReferences(
     endpoint: EndpointDefinition,
     state: State
-  ): ParamResolution[List[I.Predicate]] =
+  ): WithParamResolutionState[List[I.Predicate]] =
     endpoint
       .preconditions
       .map(_.predicate)
@@ -136,16 +153,16 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
   private def resolveEndpointsInPredicate(
     predicate: S.Predicate,
     state: State
-  ): ParamResolution[I.Predicate] =
+  ): WithParamResolutionState[I.Predicate] =
     SymbolConverter.convertPredicate(S, I)(predicate)(convertSchemaSymbols(_, state))
 
   private def convertSchemaSymbols(
     symbol: S.OwnSymbols,
     state: State
-  ): ParamResolution[I.Symbol] =
+  ): WithParamResolutionState[I.Symbol] =
     symbol match {
       case endpoint: S.Endpoint => resolveEndpointSymbol(endpoint, state).widen
-      case S.Parameter(name)    => (I.Parameter(name): I.Symbol).pure[ParamResolution]
+      case S.Parameter(name)    => (I.Parameter(name): I.Symbol).pure[WithParamResolutionState]
       case S.ResponseBody | S.StatusCode =>
         throw new Exception(s"Preconditions cannot contain a ${symbol.getClass.getSimpleName}")
     }
@@ -153,13 +170,13 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
   private def resolveEndpointSymbol(
     endpoint: S.Endpoint,
     state: State
-  ): ParamResolution[I.Literal] = {
+  ): WithParamResolutionState[I.Literal] = {
     val previousRequests = state.responses.getOrElse(endpoint.endpointId, Queue.empty)
     val paramCombinations =
       endpoint.parameters.traverse {
         case x: S.Endpoint  => resolveEndpointSymbol(x, state).map(_.value.asRight[EndpointParameterName])
-        case x: S.Parameter => x.name.asLeft[Json].pure[ParamResolution]
-        case x: S.Literal   => x.value.asRight[EndpointParameterName].pure[ParamResolution]
+        case x: S.Parameter => x.name.asLeft[Json].pure[WithParamResolutionState]
+        case x: S.Literal   => x.value.asRight[EndpointParameterName].pure[WithParamResolutionState]
         case x =>
           throw new UnsupportedOperationException(
             s"""
@@ -176,12 +193,12 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
   private def matchRequestsByParams(
     requests: Seq[EndpointRequestResponse],
     params: Map[EndpointParameterName, Either[EndpointParameterName, Json]]
-  ): ParamResolution[I.Literal] = {
+  ): WithParamResolutionState[I.Literal] = {
     val (variableParams, literalParams) = params.partitionEither(identity)
     val endpointParamsByVariable        = variableParams.swap.toList
 
-    StateT { (state: Map[EndpointParameterName, Json]) =>
-      matchRequestsByLiterals(requests, literalParams).map(state -> _).toList
+    StateT { (resolvedParams: Map[EndpointParameterName, Json]) =>
+      matchRequestsByLiterals(requests, literalParams).map(resolvedParams -> _).toList
     }.flatMap(
       matchRequestIfVariablesFit(_, endpointParamsByVariable).mapK(λ[Option ~> List](_.toList))
     )
@@ -212,6 +229,8 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
             .map(paramValue => (resolvedParams ++ Map(variableParam -> paramValue), ()))
         }
     }.as(I.Literal(request.response.body))
+
+  private def getPostconditionRequests: List[EndpointRequest] = Nil
 
   // Returns a 'meaningfully sampled set' of all possible values this parameter can be. For boolean this is easy:
   // always return true and false. However, all other types have a much larger space, so we have to return a sample
@@ -274,7 +293,7 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
   }
 
   private def endpointWeight(state: State, endpoint: EndpointId): Int = {
-    val count      = state.opportunities.take(maxBiasFactor).count(_.possibleRequests.contains(endpoint))
+    val count      = state.opportunities.count(_.possibleRequests.contains(endpoint))
     val maxPenalty = maxBiasFactor + 1
 
     // Random (no biasing of less-frequently available endpoints)
@@ -313,9 +332,10 @@ object RequestGenerator {
     */
   private val maxHistory = 1000
 
-  private val initialState = State(Queue.empty, Queue.empty, 0)
+  private val initialState = State(Queue.empty, Queue.empty, Queue.empty)
 
-  private type ParamResolution[A] = StateT[List, Map[EndpointParameterName, Json], A]
+  private type WithState[A]                = StateT[Option, State, A]
+  private type WithParamResolutionState[A] = StateT[List, Map[EndpointParameterName, Json], A]
 
   private case class EndpointCandidate(endpointId: EndpointId, possibleRequests: NonEmptyList[RequestCandidate])
 
@@ -326,26 +346,44 @@ object RequestGenerator {
 
   private case class Opportunities(possibleRequests: Set[EndpointId])
 
-  private case class Result(
-    opportunities: Opportunities,
-    nextRequest: EndpointRequest
-  )
-
-  private case class State(history: Queue[EndpointRequestResponse], opportunities: Queue[Opportunities], size: Int) {
+  private case class State(
+    history: Queue[EndpointRequestResponse],
+    opportunities: Queue[Opportunities],
+    predeterminedRequests: Queue[EndpointRequest]
+  ) {
     lazy val responses: Map[EndpointId, Queue[EndpointRequestResponse]] = history.groupBy(_.request.endpointId)
 
-    def append(o: Opportunities, r: EndpointRequestResponse): State =
-      if (size === maxHistory)
-        copy(
-          history       = history.enqueue(r).dequeue._2,
-          opportunities = opportunities.enqueue(o).dequeue._2
-        )
+    def recordOpportunities(newOpportunities: Opportunities): State =
+      copy(
+        opportunities = boundedAppend(opportunities, newOpportunities, maxBiasFactor)
+      )
+
+    def enqueuePredeterminedRequests(requests: List[EndpointRequest]): State =
+      copy(
+        predeterminedRequests = predeterminedRequests.enqueueAll(requests)
+      )
+
+    def dequeuePredeterminedRequest(): Option[(State, EndpointRequest)] =
+      predeterminedRequests.dequeueOption.map {
+        case (nextRequest, tailRequests) =>
+          val updatedState =
+            copy(
+              predeterminedRequests = tailRequests
+            )
+
+          updatedState -> nextRequest
+      }
+
+    def recordResponse(response: Either[EndpointRequestFailure, EndpointRequestResponse]): State =
+      copy(
+        history = response.toOption.fold(history)(boundedAppend(history, _, maxHistory))
+      )
+
+    private def boundedAppend[A](queue: Queue[A], item: A, maxSize: Int): Queue[A] =
+      if (queue.size === maxSize)
+        queue.enqueue(item).dequeue._2
       else
-        copy(
-          history       = history.enqueue(r),
-          opportunities = opportunities.enqueue(o),
-          size          = size + 1
-        )
+        queue.enqueue(item)
 
   }
 

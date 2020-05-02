@@ -1,6 +1,6 @@
 package autospec.common
 
-import cats.data.{Chain, EitherT}
+import cats.data.{Chain, EitherT, StateT}
 import cats.implicits._
 import cats.{Alternative, Bifoldable, FlatMap, Foldable, Functor, Monad, Monoid}
 import monix.eval.Task
@@ -109,6 +109,13 @@ object FunctorExtensions {
 
     def swap: Map[V, Set[K]] =
       value.groupMap(_._2)(_._1).view.mapValues(_.toSet).toMap
+
+  }
+
+  implicit class RichStateT[F[_], S, A](val value: StateT[F, S, A]) extends AnyVal {
+
+    def transformTap[B, SC](f: (S, A) => S)(implicit F: Functor[F]): StateT[F, S, A] =
+      value.transform((state, a) => f(state, a) -> a)
 
   }
 
