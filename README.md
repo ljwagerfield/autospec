@@ -2,7 +2,7 @@
 
 # AutoSpec
 
-Test Framework for REST APIs that uses "rules" instead of "tests".
+Test Framework for REST APIs where you write "rules" instead of "tests".
 
 **Benefits:**
 
