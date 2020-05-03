@@ -193,7 +193,7 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
     endpoint: SL.Endpoint,
     state: State
   ): WithParamResolutionState[I.Literal] = {
-    val previousRequests = state.responses.getOrElse(endpoint.endpointId, Queue.empty)
+    val previousRequests = state.responses.getOrElse(endpoint.endpointId, List.empty)
     val paramCombinations =
       endpoint.parameters.traverse {
         case x: SL.Endpoint  => resolveEndpointSymbol(x, state).map(_.value.asRight[EndpointParameterName])
@@ -213,7 +213,7 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
   }
 
   private def matchRequestsByParams(
-    requests: Seq[EndpointRequestResponse],
+    requests: Iterable[EndpointRequestResponse],
     params: Map[EndpointParameterName, Either[EndpointParameterName, Json]]
   ): WithParamResolutionState[I.Literal] = {
     val (variableParams, literalParams) = params.partitionEither(identity)
@@ -227,9 +227,9 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
   }
 
   private def matchRequestsByLiterals(
-    requests: Seq[EndpointRequestResponse],
+    requests: Iterable[EndpointRequestResponse],
     partialParams: Map[EndpointParameterName, Json]
-  ): Seq[EndpointRequestResponse] =
+  ): Iterable[EndpointRequestResponse] =
     requests.filter { request =>
       partialParams.forall {
         case (paramName, paramValue) =>
@@ -493,7 +493,12 @@ object RequestGenerator {
     postconditionReverseLookupScope: Map[EndpointRequest, EndpointResponse],
     postconditionForwardLookupScope: Map[EndpointRequest, EndpointResponse]
   ) {
-    lazy val responses: Map[EndpointId, Queue[EndpointRequestResponse]] = history.groupBy(_.request.endpointId)
+
+    lazy val historyMap: Map[EndpointRequest, EndpointRequestResponse] =
+      // IMPORTANT: take latest response from each unique request.
+      history.groupMapReduce(_.request)(identity)((_, last) => last)
+
+    lazy val responses: Map[EndpointId, Iterable[EndpointRequestResponse]] = historyMap.groupMap(_._1.endpointId)(_._2)
 
     def setupRequestUnderTest(request: RequestCandidate): State =
       copy(
