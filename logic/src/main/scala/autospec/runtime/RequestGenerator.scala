@@ -6,15 +6,16 @@ import autospec.common.MathUtils._
 import autospec.common.StringExtensions._
 import autospec.runtime.RequestGenerator.{RequestCandidate, WithState, _}
 import autospec.runtime.exceptions.EndpointRequestFailure
-import autospec.runtime.resolvers.{IntermediateSymbolResolver, SymbolConverter}
+import autospec.runtime.resolvers.{BaseSymbolResolver, IntermediateSymbolResolver, SymbolConverter}
 import autospec.schema._
-import autospec.{IntermediateSymbols => I, LocalSchemaSymbols => S}
-import cats.data.{NonEmptyList, OptionT, StateT}
+import autospec.{GlobalSchemaSymbols => SG, IntermediateSymbols => I, LocalSchemaSymbols => SL}
+import cats.data.{NonEmptyList, OptionT, StateT, ValidatedNel}
 import cats.implicits._
-import cats.~>
+import cats.{~>, Id}
 import fs2.Stream
 import io.circe.Json
 import monix.eval.Task
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.immutable.Queue
 import scala.util.Random
@@ -26,13 +27,16 @@ import scala.util.Random
   * doing so in as few requests as possible (this is the most challenging part of AutoSpec, and always needs improving).
   */
 class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
+  private val logger: Logger = LoggerFactory.getLogger(getClass)
 
   def stream(session: Session): Stream[Task, Either[EndpointRequestFailure, EndpointRequestResponse]] = {
     type F[A] = OptionT[Task, A]
+    val fromOption = λ[Option ~> F](OptionT.fromOption[Task](_))
+    val fromTask   = λ[Task ~> F](OptionT.liftF(_))
 
     Stream.unfoldEval(initialState) { state =>
       nextRequest(session.schema)
-        .mapK(λ[Option ~> F](OptionT.fromOption[Task](_)))
+        .mapK(fromOption)
         .flatMap { request =>
           StateT
             .liftF(
@@ -40,9 +44,9 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
                 .execute(session, request)
                 .value
             )
-            .mapK(λ[Task ~> F](OptionT.liftF(_)))
+            .mapK(fromTask)
         }
-        .transformTap(_.recordResponse(_))
+        .flatTap(processResponse(_).mapK(fromOption))
         .run(state)
         .map(_.swap)
         .value
@@ -51,37 +55,55 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
 
   private def nextRequest(schema: ApplicationSchema): WithState[EndpointRequest] =
     for {
-      callableEndpoints <- StateT.inspect[Option, State, List[EndpointCandidate]](getCallableEndpoints(schema, _))
-      nextRequest       <- nextRequestPredetermined.orElse(nextRequestRandom(callableEndpoints))
+      callableEndpoints <- getCallableEndpoints(schema)
+      nextRequest       <- nextRequestFromState.orElse(nextRequestRandom(callableEndpoints))
       opportunities      = Opportunities(callableEndpoints.map(_.endpointId).toSet)
-      _                 <- StateT.modify[Option, State](_.recordOpportunities(opportunities))
+      _                 <- saveOpportunities(opportunities)
     } yield nextRequest
 
-  private def nextRequestPredetermined: WithState[EndpointRequest] =
-    // Important: call the predetermined requests even if they're not in the set we discovered for this round, as they
-    // help us infer relationships between requests based on postconditions, rather than just preconditions, which is
-    // what the preceding discovery phase does. E.g. 'createFoo' has 'getFoo(x)' as a postcondition, but 'getFoo(x)'
-    // would never be discovered by itself. But by calling 'getFoo(x)' we now have a range for params bound to 'getFoo'.
-    StateT(_.dequeuePredeterminedRequest())
-
-  private def nextRequestRandom(callableEndpoints: List[EndpointCandidate]): WithState[EndpointRequest] =
+  private def nextRequestFromState: WithState[EndpointRequest] =
     StateT { state =>
-      val chosenEndpointOpt = weightedRandom(callableEndpoints)(x => endpointWeight(state, x.endpointId))
-      chosenEndpointOpt.map { chosenEndpoint =>
-        val RequestCandidate(nextRequest, postconditionChecks) =
-          chosenEndpoint
-            .possibleRequests
-            .toList(
-              // TODO: bias these based on how frequently available they are... but don't favour endpoints with more paramaters any more than those with equal! Currently we're just randomly selecting.
-              Random.nextInt(chosenEndpoint.possibleRequests.size)
-            )
-
-        state.enqueuePredeterminedRequests(postconditionChecks) -> nextRequest
+      val nextRequests = unresolvedRequestsFromPostconditions(state)
+      val (reverse, forward) = nextRequests.partitionMap {
+        case (request, SG.Endpoint(_, _, false)) => Left(request)
+        case (request, SG.Endpoint(_, _, true))  => Right(request)
       }
+      val nextReverseRequest = reverse.headOption.map(state -> _)
+      val requestUnderTest   = state.popRequestUnderTest
+      val nextForwardRequest = forward.headOption.map(state -> _)
+
+      // Order is important.
+      // Also, we call these regardless of if they appear in 'callableEndpoints', as their availability is informed by
+      // postconditions on endpoints, rather than preconditions on endpoints that's used for 'callableEndpoints'.  E.g.
+      // 'createFoo' has 'getFoo(x)' as a postcondition, but 'getFoo(x)' would never be discovered by itself. But by
+      // calling 'getFoo(x)' we now have a range of values available for preconditions dependent on 'getFoo'.
+      nextReverseRequest
+        .orElse(requestUnderTest)
+        .orElse(nextForwardRequest)
     }
 
-  private def getCallableEndpoints(schema: ApplicationSchema, state: State): List[EndpointCandidate] =
-    schema.endpoints.flatMap(getCallableEndpoint(_, state))
+  private def nextRequestRandom(callableEndpoints: List[EndpointCandidate]): WithState[EndpointRequest] = {
+    val maybeSaveNextRequestToState =
+      StateT.modifyF[Option, State] { state =>
+        val chosenEndpointOpt = weightedRandom(callableEndpoints)(x => endpointWeight(state, x.endpointId))
+        chosenEndpointOpt.map { chosenEndpoint =>
+          val chosenRequest =
+            chosenEndpoint
+              .possibleRequests
+              .toList(
+                // TODO: bias these based on how frequently available they are... but don't favour endpoints with more paramaters any more than those with equal! Currently we're just randomly selecting.
+                Random.nextInt(chosenEndpoint.possibleRequests.size)
+              )
+
+          state.setupRequestUnderTest(chosenRequest)
+        }
+      }
+
+    maybeSaveNextRequestToState *> log("Started new random sequence of requests") *> nextRequestFromState
+  }
+
+  private def getCallableEndpoints(schema: ApplicationSchema): WithState[List[EndpointCandidate]] =
+    StateT.inspect(state => schema.endpoints.flatMap(getCallableEndpoint(_, state)))
 
   private def getCallableEndpoint(endpoint: EndpointDefinition, state: State): Option[EndpointCandidate] =
     getRequestCandidates(endpoint, state).toNel.map(
@@ -97,11 +119,11 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
           }
 
         paramCombinationsThatSatisfyPredicates.map { params =>
-          val currentRequest        = EndpointRequest(endpoint.id, params.toMap)
-          val postconditionRequests = getPostconditionRequests
+          val currentRequest = EndpointRequest(endpoint.id, params.toMap)
+          val postconditions = getPostconditions(endpoint, currentRequest)
           RequestCandidate(
             currentRequest,
-            postconditionRequests
+            postconditions
           )
         }
     }
@@ -151,32 +173,32 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
     IntermediateSymbolResolver.resolvePredicate(predicate, resolvedParams)
 
   private def resolveEndpointsInPredicate(
-    predicate: S.Predicate,
+    predicate: SL.Predicate,
     state: State
   ): WithParamResolutionState[I.Predicate] =
-    SymbolConverter.convertPredicate(S, I)(predicate)(convertSchemaSymbols(_, state))
+    SymbolConverter.convertPredicate(SL, I)(predicate)(convertSchemaSymbols(_, state))
 
   private def convertSchemaSymbols(
-    symbol: S.OwnSymbols,
+    symbol: SL.OwnSymbols,
     state: State
   ): WithParamResolutionState[I.Symbol] =
     symbol match {
-      case endpoint: S.Endpoint => resolveEndpointSymbol(endpoint, state).widen
-      case S.Parameter(name)    => (I.Parameter(name): I.Symbol).pure[WithParamResolutionState]
-      case S.ResponseBody | S.StatusCode =>
+      case endpoint: SL.Endpoint => resolveEndpointSymbol(endpoint, state).widen
+      case SL.Parameter(name)    => (I.Parameter(name): I.Symbol).pure[WithParamResolutionState]
+      case SL.ResponseBody | SL.StatusCode =>
         throw new Exception(s"Preconditions cannot contain a ${symbol.getClass.getSimpleName}")
     }
 
   private def resolveEndpointSymbol(
-    endpoint: S.Endpoint,
+    endpoint: SL.Endpoint,
     state: State
   ): WithParamResolutionState[I.Literal] = {
     val previousRequests = state.responses.getOrElse(endpoint.endpointId, Queue.empty)
     val paramCombinations =
       endpoint.parameters.traverse {
-        case x: S.Endpoint  => resolveEndpointSymbol(x, state).map(_.value.asRight[EndpointParameterName])
-        case x: S.Parameter => x.name.asLeft[Json].pure[WithParamResolutionState]
-        case x: S.Literal   => x.value.asRight[EndpointParameterName].pure[WithParamResolutionState]
+        case x: SL.Endpoint  => resolveEndpointSymbol(x, state).map(_.value.asRight[EndpointParameterName])
+        case x: SL.Parameter => x.name.asLeft[Json].pure[WithParamResolutionState]
+        case x: SL.Literal   => x.value.asRight[EndpointParameterName].pure[WithParamResolutionState]
         case x =>
           throw new UnsupportedOperationException(
             s"""
@@ -230,7 +252,106 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
         }
     }.as(I.Literal(request.response.body))
 
-  private def getPostconditionRequests: List[EndpointRequest] = Nil
+  private def saveOpportunities(opportunities: Opportunities): WithState[Unit] =
+    StateT.modify(_.appendOpportunities(opportunities))
+
+  private def processResponse(response: Either[EndpointRequestFailure, EndpointRequestResponse]): WithState[Unit] =
+    saveResponse(response)
+
+  private def saveResponse(response: Either[EndpointRequestFailure, EndpointRequestResponse]): WithState[Unit] = {
+    val updateState = StateT.modify[Option, State](_.appendResponse(response))
+    val logMessage  = log(s"Stored ${response.fold(_ => "failed", _ => "successful")} response")
+    updateState *> logMessage
+  }
+
+  private def getPostconditions(endpoint: EndpointDefinition, request: EndpointRequest): List[SG.Predicate] =
+    endpoint.postconditions.map(predicate =>
+      SymbolConverter.convertPredicate(SL, SG)(predicate)(convertOwnLocalSymbolToGlobalSymbol(_, request))
+    )
+
+  private def convertLocalSymbolToGlobalSymbol(symbol: SL.Symbol, request: EndpointRequest): Id[SG.Symbol] =
+    SymbolConverter.convertSymbol(SL, SG)(symbol)(convertOwnLocalSymbolToGlobalSymbol(_, request))
+
+  private def convertOwnLocalSymbolToGlobalSymbol(
+    symbol: SL.OwnSymbols,
+    request: EndpointRequest
+  ): Id[SG.Symbol] =
+    symbol match {
+      case SL.Parameter(name) => SG.Literal(request.parameterValues(name))
+      case SL.ResponseBody =>
+        SG.Endpoint(
+          request.endpointId,
+          request.parameterValues.view.mapValues(SG.Literal.apply).toMap,
+          evaluateAfterExecution = true
+        )
+      case SL.StatusCode =>
+        // Todo: replace with status code reference (see: https://trello.com/c/m7gs0JnN/45-allow-sendpoint-to-dereference-status-codes-too)
+        SG.Endpoint(
+          request.endpointId,
+          request.parameterValues.view.mapValues(SG.Literal.apply).toMap,
+          evaluateAfterExecution = true
+        )
+      case SL.Endpoint(endpointId, parameters, evaluateAfterExecution) =>
+        SG.Endpoint(
+          endpointId,
+          parameters.traverse(convertLocalSymbolToGlobalSymbol(_, request)),
+          evaluateAfterExecution
+        )
+    }
+
+  private def unresolvedRequestsFromPostconditions(state: State): List[(EndpointRequest, SG.Endpoint)] =
+    unresolvedRequestsFromPredicates(
+      state.unresolvedPostconditions,
+      state.postconditionReverseLookupScope,
+      state.postconditionForwardLookupScope
+    )
+
+  private def unresolvedRequestsFromPredicates(
+    predicates: Seq[SG.Predicate],
+    reverseLookupScope: Map[EndpointRequest, EndpointResponse],
+    forwardLookupScope: Map[EndpointRequest, EndpointResponse]
+  ): List[(EndpointRequest, SG.Endpoint)] =
+    predicates.flatMap(predicate =>
+      BaseSymbolResolver.convertToBasePredicate(SG)(predicate)(
+        tryResolveRequestFromEndpointSymbol(_, reverseLookupScope, forwardLookupScope)
+      ).fold(_.toList, _ => Nil)
+    ).toList
+
+  private def tryResolveRequestFromEndpointSymbol(
+    symbol: SG.OwnSymbols,
+    reverseLookupScope: Map[EndpointRequest, EndpointResponse],
+    forwardLookupScope: Map[EndpointRequest, EndpointResponse]
+  ): ValidatedNel[(EndpointRequest, SG.Endpoint), Json] =
+    symbol match {
+      case endpoint @ SG.Endpoint(endpointId, parameters, evaluateAfterExecution) =>
+        parameters.traverse(tryResolveSymbolFromRequestScopes(_, reverseLookupScope, forwardLookupScope)).andThen {
+          parameterValues =>
+            val request =
+              EndpointRequest(
+                endpointId,
+                parameterValues
+              )
+
+            val scope =
+              if (evaluateAfterExecution)
+                forwardLookupScope
+              else
+                reverseLookupScope
+
+            scope.get(request).map(_.body).toValidNel(request -> endpoint)
+        }
+    }
+
+  private def tryResolveSymbolFromRequestScopes(
+    symbol: SG.Symbol,
+    reverseLookupScope: Map[EndpointRequest, EndpointResponse],
+    forwardLookupScope: Map[EndpointRequest, EndpointResponse]
+  ): ValidatedNel[(EndpointRequest, SG.Endpoint), Json] =
+    BaseSymbolResolver.convertToBaseSymbol(SG)(symbol)(
+      tryResolveRequestFromEndpointSymbol(_, reverseLookupScope, forwardLookupScope)
+    ).map(
+      BaseSymbolResolver.resolveSymbol
+    )
 
   // Returns a 'meaningfully sampled set' of all possible values this parameter can be. For boolean this is easy:
   // always return true and false. However, all other types have a much larger space, so we have to return a sample
@@ -312,6 +433,24 @@ class RequestGenerator(requestExecutor: EndpointRequestExecutor) {
     maxPenalty - count
   }
 
+  private def log(message: String): WithState[Unit] =
+    if (logger.isDebugEnabled)
+      StateT.inspect { state =>
+        def summariseResponses(value: Map[EndpointRequest, EndpointResponse]) =
+          value.view.mapValues(_.status).toMap
+        logger.debug(
+          s"""
+             |$message |
+             |pendingRequestUnderTest=${state.pendingRequestUnderTest} |
+             |unresolvedPostconditions=${state.unresolvedPostconditions} |
+             |postconditionReverseLookupScope=${summariseResponses(state.postconditionReverseLookupScope)} |
+             |postconditionForwardLookupScope=${summariseResponses(state.postconditionForwardLookupScope)} |
+             |""".stripMarginAndLineBreaks
+        )
+      }
+    else
+      ().pure[WithState]
+
 }
 
 object RequestGenerator {
@@ -332,7 +471,7 @@ object RequestGenerator {
     */
   private val maxHistory = 1000
 
-  private val initialState = State(Queue.empty, Queue.empty, Queue.empty)
+  private val initialState = State(Queue.empty, Queue.empty, None, Nil, Map.empty, Map.empty)
 
   private type WithState[A]                = StateT[Option, State, A]
   private type WithParamResolutionState[A] = StateT[List, Map[EndpointParameterName, Json], A]
@@ -341,7 +480,7 @@ object RequestGenerator {
 
   private case class RequestCandidate(
     request: EndpointRequest,
-    postconditionChecks: List[EndpointRequest]
+    postconditions: List[SG.Predicate]
   )
 
   private case class Opportunities(possibleRequests: Set[EndpointId])
@@ -349,35 +488,58 @@ object RequestGenerator {
   private case class State(
     history: Queue[EndpointRequestResponse],
     opportunities: Queue[Opportunities],
-    predeterminedRequests: Queue[EndpointRequest]
+    pendingRequestUnderTest: Option[EndpointRequest],
+    unresolvedPostconditions: List[SG.Predicate],
+    postconditionReverseLookupScope: Map[EndpointRequest, EndpointResponse],
+    postconditionForwardLookupScope: Map[EndpointRequest, EndpointResponse]
   ) {
     lazy val responses: Map[EndpointId, Queue[EndpointRequestResponse]] = history.groupBy(_.request.endpointId)
 
-    def recordOpportunities(newOpportunities: Opportunities): State =
+    def setupRequestUnderTest(request: RequestCandidate): State =
+      copy(
+        pendingRequestUnderTest         = Some(request.request),
+        unresolvedPostconditions        = request.postconditions,
+        postconditionReverseLookupScope = Map.empty,
+        postconditionForwardLookupScope = Map.empty
+      )
+
+    def popRequestUnderTest: Option[(State, EndpointRequest)] =
+      pendingRequestUnderTest.map(r => copy(pendingRequestUnderTest = None) -> r)
+
+    def appendOpportunities(newOpportunities: Opportunities): State =
       copy(
         opportunities = boundedAppend(opportunities, newOpportunities, maxBiasFactor)
       )
 
-    def enqueuePredeterminedRequests(requests: List[EndpointRequest]): State =
+    def appendResponse(response: Either[EndpointRequestFailure, EndpointRequestResponse]): State = {
+      // Until the request under test is executed, all requests we execute are for the reverse lookup scope.
+      val isReverseLookupScope     = pendingRequestUnderTest.isDefined
+      val hasPendingPostconditions = unresolvedPostconditions.nonEmpty
+
+      def appendToScopeMaybe(
+        scope: Map[EndpointRequest, EndpointResponse],
+        isActiveScope: Boolean
+      ): Map[EndpointRequest, EndpointResponse] =
+        response.fold(
+          _ => Map.empty,
+          response =>
+            if (hasPendingPostconditions && isActiveScope)
+              scope ++ Map(response.request -> response.response)
+            else
+              scope
+        )
+
+      // On error, stop attempting to execute the request under test and its postconditions, as if we keep attempting
+      // to execute the same request sequence over-and-over, we will get stuck in a failing cycle if the API has a
+      // problem, so allow the request generator to randomly generate another request instead.
       copy(
-        predeterminedRequests = predeterminedRequests.enqueueAll(requests)
+        history                         = response.toOption.fold(history)(boundedAppend(history, _, maxHistory)),
+        pendingRequestUnderTest         = response.fold(_ => None, _ => pendingRequestUnderTest),
+        unresolvedPostconditions        = response.fold(_ => Nil, _ => unresolvedPostconditions),
+        postconditionReverseLookupScope = appendToScopeMaybe(postconditionReverseLookupScope, isReverseLookupScope),
+        postconditionForwardLookupScope = appendToScopeMaybe(postconditionForwardLookupScope, !isReverseLookupScope)
       )
-
-    def dequeuePredeterminedRequest(): Option[(State, EndpointRequest)] =
-      predeterminedRequests.dequeueOption.map {
-        case (nextRequest, tailRequests) =>
-          val updatedState =
-            copy(
-              predeterminedRequests = tailRequests
-            )
-
-          updatedState -> nextRequest
-      }
-
-    def recordResponse(response: Either[EndpointRequestFailure, EndpointRequestResponse]): State =
-      copy(
-        history = response.toOption.fold(history)(boundedAppend(history, _, maxHistory))
-      )
+    }
 
     private def boundedAppend[A](queue: Queue[A], item: A, maxSize: Int): Queue[A] =
       if (queue.size === maxSize)

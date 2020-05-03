@@ -11,6 +11,8 @@
     </appender>
 
     <logger name="org.http4s" level="WARN" />
+    <logger name="io.netty" level="WARN" />
+    <logger name="org.asynchttpclient" level="WARN" />
 
     <root level="INFO">
         <appender-ref ref="ASYNCSTDOUT" />

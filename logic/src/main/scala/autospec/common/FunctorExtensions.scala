@@ -9,6 +9,12 @@ object FunctorExtensions {
 
   implicit class RichF[F[_], A](val fa: F[A]) extends AnyVal {
 
+    def tap(f: A => Unit)(implicit F: Functor[F]): F[A] =
+      fa.map { a =>
+        f(a)
+        a
+      }
+
     def flatPartitionBifold[H[_, _], B, C](
       f: A => H[F[B], F[C]]
     )(implicit A: Alternative[F], F: Foldable[F], F2: FlatMap[F], H: Bifoldable[H]): (F[B], F[C]) = {
