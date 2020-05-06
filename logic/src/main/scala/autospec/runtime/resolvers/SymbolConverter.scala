@@ -28,6 +28,7 @@ object SymbolConverter {
       case x: a.Multiply              => (convertSym(x.left), convertSym(x.right)).mapN(b.Multiply(_, _))
       case x: a.Divide                => (convertSym(x.left), convertSym(x.right)).mapN(b.Divide(_, _))
       case x: a.Concat                => (convertSym(x.leftCollection), convertSym(x.rightCollection)).mapN(b.Concat(_, _))
+      case x: a.Cond                  => (convertPred(x.predicate), convertSym(x.ifTrue), convertSym(x.ifFalse)).mapN(b.Cond(_, _, _))
       case x: a.Predicate             => convertPred(x).widen[b.Symbol]
       case x: a.OwnSymbols @unchecked => convert(x)
       case x                          => throw new Exception(s"No matches for $x in case statement.")

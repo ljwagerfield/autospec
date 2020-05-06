@@ -41,7 +41,8 @@ object BaseSymbolResolver {
   }
 
   private def resolveSymbol(lambdaParameterStack: List[Json], symbol: Symbol): Json = {
-    val resolve = resolveSymbol(lambdaParameterStack, _: Symbol)
+    val resolve     = resolveSymbol(lambdaParameterStack, _: Symbol)
+    val resolvePred = resolvePredicate(lambdaParameterStack, _: Predicate)
     symbol match {
       case Literal(value)            => value
       case LambdaParameter(distance) => lambdaParameterStack(distance)
@@ -51,11 +52,12 @@ object BaseSymbolResolver {
           toVector(resolve(symbol))
             .map(json => resolveSymbol(json :: lambdaParameterStack, function))
         )
-      case FlatMap(symbol, function) => resolve(Flatten(Map(symbol, function)))
-      case Flatten(symbol)           => flatten(resolve(symbol))
-      case Count(symbol)             => Json.fromInt(toVector(resolve(symbol)).size)
-      case Distinct(symbol)          => Json.fromValues(toVector(resolve(symbol)).distinct)
-      case Concat(left, right)       => Json.fromValues(toVector(resolve(left)) ++ toVector(resolve(right)))
+      case FlatMap(symbol, function)        => resolve(Flatten(Map(symbol, function)))
+      case Flatten(symbol)                  => flatten(resolve(symbol))
+      case Count(symbol)                    => Json.fromInt(toVector(resolve(symbol)).size)
+      case Distinct(symbol)                 => Json.fromValues(toVector(resolve(symbol)).distinct)
+      case Concat(left, right)              => Json.fromValues(toVector(resolve(left)) ++ toVector(resolve(right)))
+      case Cond(predicate, ifTrue, ifFalse) => if (resolvePred(predicate)) resolve(ifTrue) else resolve(ifFalse)
 
       case Find(symbol, predicate) =>
         toVector(resolve(symbol))

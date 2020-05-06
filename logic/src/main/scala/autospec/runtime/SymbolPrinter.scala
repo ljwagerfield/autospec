@@ -53,6 +53,7 @@ object ScalaSymbolPrinter extends SymbolPrinter {
       case x: family.Multiply           => s"${p(x.left)} * ${p(x.right)}"
       case x: family.Divide             => s"${p(x.left)} / ${p(x.right)}"
       case x: family.Concat             => s"${p(x.leftCollection)} ++ ${p(x.rightCollection)}"
+      case x: family.Cond               => s"${p(x.predicate)} ? ${p(x.ifTrue)} : ${p(x.ifFalse)}"
       case x: family.Predicate.Equals   => wrapParenthesis(family)(s"${p(x.left)} == ${p(x.right)}", x.left, x.right)
       case x: family.Predicate.And      => wrapParenthesis(family)(s"${p(x.left)} && ${p(x.right)}", x.left, x.right)
       case x: family.Predicate.Or       => wrapParenthesis(family)(s"${p(x.left)} || ${p(x.right)}", x.left, x.right)

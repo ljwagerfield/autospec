@@ -3,6 +3,7 @@ package autospec
 import autospec.runtime.{EndpointRequestId, EndpointRequestIndex}
 import io.circe.Json
 import autospec.schema.{EndpointId, EndpointParameterName}
+
 import scala.collection.immutable.{Map => SMap}
 
 sealed trait CommonSymbols {
@@ -17,18 +18,19 @@ sealed trait CommonSymbols {
     extends Symbol // 0 is current lambda's param, 1 is parent, 2 is grandparent, etc. Used with things like 'Exists'
 
   // Recursive Symbols
-  case class ValueAt(symbol: Symbol, key: Symbol)                    extends Symbol // If key is an array, will be traversed.
-  case class Map(symbol: Symbol, function: Symbol)                   extends Symbol
-  case class Flatten(symbol: Symbol)                                 extends Symbol
-  case class FlatMap(symbol: Symbol, function: Symbol)               extends Symbol
-  case class Find(symbol: Symbol, predicate: Predicate)              extends Symbol
-  case class Count(symbol: Symbol)                                   extends Symbol
-  case class Add(left: Symbol, right: Symbol)                        extends Symbol
-  case class Subtract(left: Symbol, right: Symbol)                   extends Symbol
-  case class Multiply(left: Symbol, right: Symbol)                   extends Symbol
-  case class Divide(left: Symbol, right: Symbol)                     extends Symbol
-  case class Distinct(symbol: Symbol)                                extends Symbol
-  case class Concat(leftCollection: Symbol, rightCollection: Symbol) extends Symbol // To add an element, use 'Add'
+  case class ValueAt(symbol: Symbol, key: Symbol)                        extends Symbol // If key is an array, will be traversed.
+  case class Map(symbol: Symbol, function: Symbol)                       extends Symbol
+  case class Flatten(symbol: Symbol)                                     extends Symbol
+  case class FlatMap(symbol: Symbol, function: Symbol)                   extends Symbol
+  case class Find(symbol: Symbol, predicate: Predicate)                  extends Symbol
+  case class Count(symbol: Symbol)                                       extends Symbol
+  case class Add(left: Symbol, right: Symbol)                            extends Symbol
+  case class Subtract(left: Symbol, right: Symbol)                       extends Symbol
+  case class Multiply(left: Symbol, right: Symbol)                       extends Symbol
+  case class Divide(left: Symbol, right: Symbol)                         extends Symbol
+  case class Distinct(symbol: Symbol)                                    extends Symbol
+  case class Concat(leftCollection: Symbol, rightCollection: Symbol)     extends Symbol // To add an element, use 'Add'
+  case class Cond(predicate: Predicate, ifTrue: Symbol, ifFalse: Symbol) extends Symbol
 
   sealed trait Predicate extends Symbol
 
@@ -114,6 +116,14 @@ object IntermediateSymbols extends CommonSymbols {
   sealed trait ResolvedPreconditionSymbol extends Symbol
 
   case class Parameter(name: EndpointParameterName) extends ResolvedPreconditionSymbol
+
+  object Parameter {
+
+    def apply(name: String): Parameter =
+      Parameter(EndpointParameterName(name))
+
+  }
+
 }
 
 sealed trait RuntimeSymbolsLike[A] extends CommonSymbols {
