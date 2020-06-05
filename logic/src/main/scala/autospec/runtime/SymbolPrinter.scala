@@ -40,7 +40,7 @@ object ScalaSymbolPrinter extends SymbolPrinter {
     val p = common(family)(_: family.Symbol)(specialized)
     symbol match {
       case x: family.Literal            => x.value.toString()
-      case x: family.LambdaParameter    => if (x.distance === 0) "_" else symbol.toString
+      case x: family.LambdaParameter    => if (x.relativeStackIndex === 0) "_" else symbol.toString
       case x: family.ValueAt            => s"${p(x.symbol)}(${p(x.key)})"
       case x: family.Map                => s"${p(x.symbol)}.map(${p(x.function)})"
       case x: family.FlatMap            => s"${p(x.symbol)}.flatMap(${p(x.function)})"

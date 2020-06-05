@@ -14,7 +14,7 @@ sealed trait CommonSymbols {
   // Leafs
   case class Literal(value: Json) extends Symbol
 
-  case class LambdaParameter(distance: Int)
+  case class LambdaParameter(relativeStackIndex: Int)
     extends Symbol // 0 is current lambda's param, 1 is parent, 2 is grandparent, etc. Used with things like 'Exists'
 
   // Recursive Symbols

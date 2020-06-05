@@ -15,7 +15,7 @@ object SymbolConverter {
     val convertPred = convertPredicate(a, b)(_: a.Predicate)(convert)
     symbol match {
       case x: a.Literal               => (b.Literal(x.value): b.Symbol).pure[F]
-      case x: a.LambdaParameter       => (b.LambdaParameter(x.distance): b.Symbol).pure[F]
+      case x: a.LambdaParameter       => (b.LambdaParameter(x.relativeStackIndex): b.Symbol).pure[F]
       case x: a.ValueAt               => (convertSym(x.symbol), convertSym(x.key)).mapN(b.ValueAt(_, _))
       case x: a.Map                   => (convertSym(x.symbol), convertSym(x.function)).mapN(b.Map(_, _))
       case x: a.FlatMap               => (convertSym(x.symbol), convertSym(x.function)).mapN(b.FlatMap(_, _))
