@@ -1,10 +1,12 @@
 package autospec.common.turing
 
+import autospec.common.turing.MachineState.{NonTerminalState, Reject, TerminalState}
 import autospec.common.turing.TapeSymbol.{IOSymbol, Input, LeftEndMarker, Output, RightEndMarker}
-import autospec.common.turing.MachineState.{Accept, NonTerminalState, Reject, TerminalState}
 import autospec.common.turing.Transition.Normal
-import cats.{Eq, Id}
 import cats.implicits._
+import cats.{Eq, Id}
+
+import scala.collection.mutable
 
 case class MachineInstance[S: Eq, I, O](
   machine: Machine[S, I, O],
@@ -24,7 +26,15 @@ case class MachineInstance[S: Eq, I, O](
   def parseToEnd: (TransitionFrom[S, I, O], TerminalState) =
     this.tailRecM[Id, (TransitionFrom[S, I, O], TerminalState)](_.parse)
 
-  def parse: Either[MachineInstance[S, I, O], (TransitionFrom[S, I, O], TerminalState)] = {
+  private def parseToRightEndMarker: Either[MachineInstance[S, I, O], TerminalState] =
+    this.tailRecM[Id, Either[MachineInstance[S, I, O], TerminalState]] { i =>
+      if (i.head === RightEndMarker)
+        i.asLeft.asRight
+      else
+        i.parse.map(_._2.asRight)
+    }
+
+  private def parse: Either[MachineInstance[S, I, O], (TransitionFrom[S, I, O], TerminalState)] = {
     val defaultTransitionTo = TransitionTo[S, I, O](None, None, Some(Reject))
     val transitionFrom      = TransitionFrom[S, I, O](current, head)
     val transitionTo        = machine.transitions.value.get(transitionFrom).fold(defaultTransitionTo)(_.to)
@@ -42,68 +52,60 @@ case class MachineInstance[S: Eq, I, O](
     }
   }
 
-  def generateToEnd(isGenerating: Boolean): LazyList[List[I]] =
-    LazyList.from(generate(isGenerating)).flatMap {
-      case (None, Left(isGenerating -> continue))        => continue.generateToEnd(isGenerating)
-      case (Some(input), Left(isGenerating -> continue)) => continue.generateToEnd(isGenerating).map(input :: _)
-      case (inputOpt, Right(Accept))                     => List(inputOpt.toList)
+  def generateToEnd: LazyList[List[I]] = {
+    val queue = mutable.Queue.empty[(List[I], MachineInstance[S, I, O])]
+
+    def yieldNextInputSequence(machine: MachineInstance[S, I, O], inputHistory: List[I]): Option[List[I]] = {
+      val (terminalState, alternatives) = machine.parseToEndAndSpawnAlternatives
+
+      queue.enqueueAll(
+        alternatives.map { case (input, machine) => (inputHistory :+ input) -> machine }
+      )
+
+      terminalState.fold(inputHistory.some, None)
     }
 
-  /**
-    * Performs a single iteration in the process of attempting to find input sequences that satisfy the machine.
-    * - Returns nil if the machine's initial tape configuration has now been determined as unacceptable.
-    * - Returns one element if we're continuing with the same initial tape configuration.
-    * - Returns multiple elements if we're exploring further different initial tape configurations.
-    * Note: 'initial tape configuration' refers to the input sequence that was initially fed to the machine. Since
-    * turing machines can only see the value under the head, we generate the 'initial tape configuration' as we go:
-    * each time we hit the end of the tape, we add another element that would match a transition, up to a maximum
-    * tape length defined by [[MachineInstance.maxGeneratedTapeLength]] to keep the process bounded.
-    */
-  def generate(isGenerating: Boolean): List[(Option[I], Either[(Boolean, MachineInstance[S, I, O]), Accept.type])] =
-    if (head === RightEndMarker && isGenerating) {
-      val possibleExpansions =
-        if (tape.size === MachineInstance.maxGeneratedTapeLength)
-          Nil
-        else
-          machine.transitionsByState.getOrElse(current, Nil).collect {
-            case Normal(_, input: Input[I], _, _, _) => input
-          }
+    (yieldNextInputSequence(machine = this, Nil) #:: LazyList.from(
+      new Iterator[Option[List[I]]] {
+        def hasNext: Boolean = queue.nonEmpty
+        def next(): Option[List[I]] = {
+          val (inputHistory, machine) = queue.dequeue()
+          yieldNextInputSequence(machine, inputHistory)
+        }
+      }
+    )).collect { case Some(inputSequence) => inputSequence }
+  }
 
-      val alternativeMachines =
-        possibleExpansions.map { input =>
-          (
-            copy(
-              tape = tape :+ input
-            ),
-            true,
-            Some(input.value)
-          )
+  private def parseToEndAndSpawnAlternatives: (TerminalState, List[(I, MachineInstance[S, I, O])]) =
+    parseToRightEndMarker match {
+      case Left(instance)  => instance.parseToEnd._2 -> instance.alternativeMachines
+      case Right(terminal) => terminal               -> Nil
+    }
+
+  private def alternativeMachines: List[(I, MachineInstance[S, I, O])] = {
+    val possibleExpansions =
+      if (tape.size === MachineInstance.maxGeneratedTapeLength)
+        Nil
+      else
+        machine.transitionsByState.getOrElse(current, Nil).collect {
+          case Normal(_, input: Input[I], _, _, _) => input
         }
 
-      val allMachines = (this, false, None) :: alternativeMachines
-
-      allMachines.flatMap {
-        case (machine, isGenerating, generatedInput) => machine.parseForGenerator(isGenerating, generatedInput)
-      }
+    possibleExpansions.map { input =>
+      (
+        input.value,
+        copy(
+          tape = tape :+ input
+        )
+      )
     }
-    else
-      parseForGenerator(isGenerating, None)
-
-  private def parseForGenerator(
-    isGenerating: Boolean,
-    generatedInput: Option[I]
-  ): List[(Option[I], Either[(Boolean, MachineInstance[S, I, O]), Accept.type])] =
-    parse match {
-      case Left(continue)     => List(generatedInput -> Left(isGenerating -> continue))
-      case Right(_ -> Accept) => List(generatedInput -> Right(Accept))
-      case Right(_ -> Reject) => Nil
-    }
+  }
 
 }
 
 object MachineInstance {
 
-  private val maxGeneratedTapeLength = 4
+  private val maxGeneratedTapeLength = 100
 
   def from[S: Eq, I, O](machine: Machine[S, I, O], input: List[I]): MachineInstance[S, I, O] =
     MachineInstance(

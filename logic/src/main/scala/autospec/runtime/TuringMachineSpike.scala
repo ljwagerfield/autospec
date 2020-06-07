@@ -5,7 +5,7 @@ import autospec.common.turing.TapeSymbol.{Input, Output}
 import autospec.common.turing.Transition.{FromRightEnd, Normal}
 import autospec.common.turing._
 import autospec.runtime.TuringMachineSpike.TuringMachineExamples.Binary.{One, Zero}
-import autospec.runtime.TuringMachineSpike.TuringMachineExamples.{Example1, Example2}
+import autospec.runtime.TuringMachineSpike.TuringMachineExamples.Example2
 import cats.Eq
 import cats.implicits._
 
@@ -114,9 +114,9 @@ object TuringMachineSpike extends App {
   }
 
   def printSequence[S: Eq, I, O](title: String, machine: Machine[S, I, O]): Unit =
-    println(s"Valid $title: \n${machine.generate.take(20).toList.mkString("\n")}")
+    println(s"Valid $title: \n${machine.generate.take(100).toList.mkString("\n")}")
 
-  printSequence("Alternating", Example1.machine)
+  //printSequence("Alternating", Example1.machine)
   printSequence("Palindromes", Example2.machine)
 
 //  val (lastTransition, isValid) =

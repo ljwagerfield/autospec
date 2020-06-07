@@ -34,6 +34,6 @@ case class Machine[S: Eq, I, O](
   def generate: LazyList[List[I]] =
     MachineInstance
       .from(machine = this, input = Nil)
-      .generateToEnd(isGenerating = true)
+      .generateToEnd
 
 }

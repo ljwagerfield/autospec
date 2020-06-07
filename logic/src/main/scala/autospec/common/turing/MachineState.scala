@@ -13,7 +13,17 @@ sealed trait MachineState[+S] {
 }
 
 object MachineState {
-  sealed trait TerminalState                extends MachineState[Nothing]
+
+  sealed trait TerminalState extends MachineState[Nothing] {
+
+    def fold[A](accept: => A, reject: => A): A =
+      this match {
+        case Accept => accept
+        case Reject => reject
+      }
+
+  }
+
   case object Accept                        extends TerminalState
   case object Reject                        extends TerminalState
   case class NonTerminalState[+S](value: S) extends MachineState[S]
