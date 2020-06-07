@@ -1,11 +1,9 @@
 package autospec.runtime
 
 import autospec.common.DistinctByKey
-import autospec.common.turing.Machine
-import autospec.common.turing.NextState.{Continue, Terminate}
 import autospec.common.turing.TapeSymbol.{Input, Output}
-import autospec.common.turing.TerminalState.{Accept, Reject}
 import autospec.common.turing.Transition.{FromRightEnd, Normal}
+import autospec.common.turing._
 import autospec.runtime.TuringMachineSpike.TuringMachineExamples.Binary.{One, Zero}
 import autospec.runtime.TuringMachineSpike.TuringMachineExamples.{Example1, Example2}
 import cats.Eq
@@ -33,16 +31,16 @@ object TuringMachineSpike extends App {
           None,
           DistinctByKey(
             // Empty sequence.
-            FromRightEnd(None, Terminate(Accept)),
+            FromRightEnd(None, noMove, accept),
             // Start of non-empty sequence.
-            Normal(None, Input(Zero), None, Continue.right(Some(Zero))),
-            Normal(None, Input(One), None, Continue.right(Some(One))),
+            Normal(None, Input(Zero), noWrite, moveRight, nextState(Zero.some)),
+            Normal(None, Input(One), noWrite, moveRight, nextState(One.some)),
             // Middle of non-empty sequence.
-            Normal(Some(Zero), Input(One), None, Continue.right(Some(One))),
-            Normal(Some(One), Input(Zero), None, Continue.right(Some(Zero))),
+            Normal(Zero.some, Input(One), noWrite, moveRight, nextState(One.some)),
+            Normal(One.some, Input(Zero), noWrite, moveRight, nextState(Zero.some)),
             // End of non-empty sequence.
-            FromRightEnd(Some(Zero), Terminate(Accept)),
-            FromRightEnd(Some(One), Terminate(Accept))
+            FromRightEnd(Zero.some, noMove, accept),
+            FromRightEnd(One.some, noMove, accept)
           )
         )
 
@@ -75,37 +73,37 @@ object TuringMachineSpike extends App {
           Start,
           DistinctByKey(
             // Empty sequence.
-            FromRightEnd(Start, Terminate(Accept)),
+            FromRightEnd(Start, noMove, accept),
             // Starting again, but nothing left to process.
-            Normal(Start, Output(()), None, Terminate(Accept)),
+            Normal(Start, Output(()), noWrite, noMove, accept),
             // Start of non-empty sequence.
-            Normal(Start, Input(Zero), Some(()), Continue.right(HaveZero)),
-            Normal(Start, Input(One), Some(()), Continue.right(HaveOne)),
+            Normal(Start, Input(Zero), write(()), moveRight, nextState(HaveZero)),
+            Normal(Start, Input(One), write(()), moveRight, nextState(HaveOne)),
             // Skip over other symbols, until we reach the end.
-            Normal(HaveZero, Input(One), None, Continue.right),
-            Normal(HaveZero, Input(Zero), None, Continue.right),
-            Normal(HaveOne, Input(One), None, Continue.right),
-            Normal(HaveOne, Input(Zero), None, Continue.right),
+            Normal(HaveZero, Input(One), noWrite, moveRight, noStateChange),
+            Normal(HaveZero, Input(Zero), noWrite, moveRight, noStateChange),
+            Normal(HaveOne, Input(One), noWrite, moveRight, noStateChange),
+            Normal(HaveOne, Input(Zero), noWrite, moveRight, noStateChange),
             // Reached the end.
-            Normal(HaveZero, Output(()), None, Continue.left(MatchZero)),
-            Normal(HaveOne, Output(()), None, Continue.left(MatchOne)),
-            FromRightEnd(HaveZero, Continue.left(MatchZero)),
-            FromRightEnd(HaveOne, Continue.left(MatchOne)),
+            Normal(HaveZero, Output(()), noWrite, moveLeft, nextState(MatchZero)),
+            Normal(HaveOne, Output(()), noWrite, moveLeft, nextState(MatchOne)),
+            FromRightEnd(HaveZero, moveLeft, nextState(MatchZero)),
+            FromRightEnd(HaveOne, moveLeft, nextState(MatchOne)),
             // Verify last character matches first character...
             // ... matches, so reset back to start and continue.
-            Normal(MatchZero, Input(Zero), Some(()), Continue.left(Back)),
-            Normal(MatchOne, Input(One), Some(()), Continue.left(Back)),
+            Normal(MatchZero, Input(Zero), write(()), moveLeft, nextState(Back)),
+            Normal(MatchOne, Input(One), write(()), moveLeft, nextState(Back)),
             // ... mismatches, so reject.
-            Normal(MatchZero, Input(One), None, Terminate(Reject)),
-            Normal(MatchOne, Input(Zero), None, Terminate(Reject)),
+            Normal(MatchZero, Input(One), noWrite, noMove, reject),
+            Normal(MatchOne, Input(Zero), noWrite, noMove, reject),
             // ... turns out we grabbed the last character, so accept it.
-            Normal(MatchZero, Output(()), None, Terminate(Accept)),
-            Normal(MatchOne, Output(()), None, Terminate(Accept)),
+            Normal(MatchZero, Output(()), noWrite, noMove, accept),
+            Normal(MatchOne, Output(()), noWrite, noMove, accept),
             // Continue going back to start.
-            Normal(Back, Input(Zero), None, Continue.left),
-            Normal(Back, Input(One), None, Continue.left),
+            Normal(Back, Input(Zero), noWrite, moveLeft, noStateChange),
+            Normal(Back, Input(One), noWrite, moveLeft, noStateChange),
             // Once at the start, repeat the process.
-            Normal(Back, Output(()), None, Continue.right(Start))
+            Normal(Back, Output(()), noWrite, moveRight, nextState(Start))
           )
         )
 

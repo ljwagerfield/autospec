@@ -1,8 +1,7 @@
 package autospec.common.turing
 
-import autospec.common.turing.NextState.{Continue, Terminate}
 import autospec.common.turing.TapeSymbol.{IOSymbol, Input, LeftEndMarker, Output, RightEndMarker}
-import autospec.common.turing.TerminalState.{Accept, Reject}
+import autospec.common.turing.MachineState.{Accept, NonTerminalState, Reject, TerminalState}
 import autospec.common.turing.Transition.Normal
 import cats.{Eq, Id}
 import cats.implicits._
@@ -26,22 +25,21 @@ case class MachineInstance[S: Eq, I, O](
     this.tailRecM[Id, (TransitionFrom[S, I, O], TerminalState)](_.parse)
 
   def parse: Either[MachineInstance[S, I, O], (TransitionFrom[S, I, O], TerminalState)] = {
-    val defaultTransitionTo = TransitionTo[S, I, O](None, Terminate(Reject))
+    val defaultTransitionTo = TransitionTo[S, I, O](None, None, Some(Reject))
     val transitionFrom      = TransitionFrom[S, I, O](current, head)
     val transitionTo        = machine.transitions.value.get(transitionFrom).fold(defaultTransitionTo)(_.to)
 
-    transitionTo.next match {
-      case Terminate(terminalState) => (transitionFrom, terminalState).asRight
-      case x @ Continue(nextState, _) =>
+    transitionTo.next.getOrElse(NonTerminalState(current)) match {
+      case terminalState: TerminalState => (transitionFrom, terminalState).asRight
+      case nextState: NonTerminalState[S] =>
         copy(
-          current   = nextState.getOrElse(current),
-          headIndex = headIndex + x.moveHead.fold(0)(_.fold(_ => -1, _ => 1)),
+          current   = nextState.value,
+          headIndex = headIndex + transitionTo.move.fold(0)(_.fold(_ => -1, _ => 1)),
           tape = transitionTo.write.fold(tape) { write =>
             tape.take(headIndex.toInt) ::: Output(write) :: tape.drop(headIndex.toInt + 1)
           }
         ).asLeft
     }
-
   }
 
   def generateToEnd(isGenerating: Boolean): LazyList[List[I]] =
@@ -68,7 +66,7 @@ case class MachineInstance[S: Eq, I, O](
           Nil
         else
           machine.transitionsByState.getOrElse(current, Nil).collect {
-            case Normal(_, input: Input[I], _, _) => input
+            case Normal(_, input: Input[I], _, _, _) => input
           }
 
       val alternativeMachines =
@@ -108,6 +106,11 @@ object MachineInstance {
   private val maxGeneratedTapeLength = 4
 
   def from[S: Eq, I, O](machine: Machine[S, I, O], input: List[I]): MachineInstance[S, I, O] =
-    MachineInstance(machine, machine.start, input.map(Input.apply), 0)
+    MachineInstance(
+      machine   = machine,
+      current   = machine.start,
+      tape      = input.map(Input.apply),
+      headIndex = 0
+    )
 
 }

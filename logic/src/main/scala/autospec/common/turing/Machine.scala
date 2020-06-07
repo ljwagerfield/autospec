@@ -12,7 +12,9 @@ import cats.Eq
   *
   * Further, we introduce our own conventions:
   * - Tape size is finite and cannot grow beyond its initial size (aka a linear bounded automaton).
-  * - Left/Right end markers are inserted before and after the input on the tape. These cannot be overwritten.
+  * - Left/Right end markers are inserted before and after the input on the tape.
+  *   - You cannot overwrite these markers.
+  *   - You cannot move the head beyond these markers.
   * - Terminal states are hardcoded to 'Accept' and 'Reject'.
   * - If a transition doesn't exist for a state/symbol combination, we implicitly transition to 'Reject'.
   */
