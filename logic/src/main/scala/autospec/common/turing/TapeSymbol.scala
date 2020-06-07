@@ -1,0 +1,17 @@
+package autospec.common.turing
+
+import cats.Eq
+
+sealed trait TapeSymbol[+I, +O]
+
+object TapeSymbol {
+  implicit def eq[I, O]: Eq[TapeSymbol[I, O]] = Eq.fromUniversalEquals
+
+  sealed trait IOSymbol[+I, +O]  extends TapeSymbol[I, O]
+  case class Input[I](value: I)  extends IOSymbol[I, Nothing]
+  case class Output[O](value: O) extends IOSymbol[Nothing, O]
+
+  sealed trait EndMarker     extends TapeSymbol[Nothing, Nothing]
+  case object LeftEndMarker  extends EndMarker
+  case object RightEndMarker extends EndMarker
+}
