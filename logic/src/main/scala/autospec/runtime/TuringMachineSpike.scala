@@ -2,16 +2,7 @@ package autospec.runtime
 
 import autospec.common.{DistinctByKey, HasKey}
 import autospec.runtime.TuringMachineSpike.TuringMachineExamples.Binary.{One, Zero}
-import autospec.runtime.TuringMachineSpike.TuringMachineExamples.Example2
-import autospec.runtime.TuringMachineSpike.TuringMachineExamples.Example2.State.{
-  Back,
-  HaveOne,
-  HaveZero,
-  MatchOne,
-  MatchZero,
-  Start
-}
-import autospec.runtime.TuringMachineSpike.TuringMachineSchema.{Machine, TerminalState, TransitionFrom, TransitionTo}
+import autospec.runtime.TuringMachineSpike.TuringMachineExamples.{Example1, Example2}
 import autospec.runtime.TuringMachineSpike.TuringMachineSchema.NextState.{Continue, Terminate}
 import autospec.runtime.TuringMachineSpike.TuringMachineSchema.Symbol.{
   IOSymbol,
@@ -22,8 +13,9 @@ import autospec.runtime.TuringMachineSpike.TuringMachineSchema.Symbol.{
 }
 import autospec.runtime.TuringMachineSpike.TuringMachineSchema.TerminalState.{Accept, Reject}
 import autospec.runtime.TuringMachineSpike.TuringMachineSchema.Transition.{FromRightEnd, Normal}
-import cats.Id
+import autospec.runtime.TuringMachineSpike.TuringMachineSchema.{Machine, MachineInstance, TransitionFrom}
 import cats.implicits._
+import cats.{Eq, Id}
 
 object TuringMachineSpike extends App {
 
@@ -32,6 +24,8 @@ object TuringMachineSpike extends App {
     sealed trait Symbol[+I, +O]
 
     object Symbol {
+      implicit def eq[I, O]: Eq[Symbol[I, O]] = Eq.fromUniversalEquals
+
       sealed trait IOSymbol[+I, +O]  extends Symbol[I, O]
       case class Input[I](value: I)  extends IOSymbol[I, Nothing]
       case class Output[O](value: O) extends IOSymbol[Nothing, O]
@@ -98,6 +92,7 @@ object TuringMachineSpike extends App {
     sealed trait NextState[+S, +M]
 
     object NextState {
+
       case class Terminate(nextState: TerminalState)                       extends NextState[Nothing, Nothing]
       case class Continue[S, M](nextState: Option[S], moveHead: Option[M]) extends NextState[S, M]
 
@@ -111,65 +106,149 @@ object TuringMachineSpike extends App {
 
     }
 
+    /**
+      * Turing Machine (technically a "Linear Bounded Automaton").
+      *
+      * Follows the Minsky 1967 definition:
+      * - Each transition can both print a symbol and then optionally move the head L/R.
+      * - Does not use "The Spurious Turing Convention" (i.e. F-Squares and E-Squares).
+      *
+      * Further, we introduce our own conventions:
+      * - Tape size is finite and cannot grow beyond its initial size (aka a linear bounded automaton).
+      * - Left/Right end markers are inserted before and after the input on the tape. These cannot be overwritten.
+      * - Terminal states are 'Accept' and 'Reject'
+      * - If a transition doesn't exist for a state/symbol combination, we implicitly transition to 'Reject'.
+      */
     case class Machine[S, I, O](
       start: S,
       transitions: DistinctByKey[Transition[S, I, O]]
-    )
+    ) {
 
-  }
+      lazy val transitionsByState: Map[S, List[Transition[S, I, O]]] =
+        transitions.value.values.groupBy(_.current).view.mapValues(_.toList).toMap
 
-  object TuringMachineParser {
+    }
 
-    private case class MachineInstance[S, I, O](
+    case class MachineInstance[S: Eq, I, O](
       machine: Machine[S, I, O],
       current: S,
       tape: List[IOSymbol[I, O]],
       headIndex: Long
     ) {
 
-      def next: Either[(TransitionFrom[S, I, O], TerminalState), MachineInstance[S, I, O]] = {
-        val head = tape.get(headIndex).getOrElse {
-          val isBeyondTape = headIndex >= tape.size
-          if (isBeyondTape)
-            RightEndMarker
-          else
-            LeftEndMarker
-        }
+      lazy val head: Symbol[I, O] = tape.get(headIndex).getOrElse {
+        val isBeyondTape = headIndex >= tape.size
+        if (isBeyondTape)
+          RightEndMarker
+        else
+          LeftEndMarker
+      }
 
+      def parseToEnd: (TransitionFrom[S, I, O], TerminalState) =
+        this.tailRecM[Id, (TransitionFrom[S, I, O], TerminalState)](_.parse)
+
+      def parse: Either[MachineInstance[S, I, O], (TransitionFrom[S, I, O], TerminalState)] = {
         val defaultTransitionTo = TransitionTo[S, I, O](None, Terminate(Reject))
         val transitionFrom      = TransitionFrom[S, I, O](current, head)
         val transitionTo        = machine.transitions.value.get(transitionFrom).fold(defaultTransitionTo)(_.to)
 
         transitionTo.next match {
-          case Terminate(terminalState) => (transitionFrom, terminalState).asLeft
-          case Continue(nextState, moveHead) =>
+          case Terminate(terminalState) => (transitionFrom, terminalState).asRight
+          case x @ Continue(nextState, _) =>
             copy(
               current   = nextState.getOrElse(current),
-              headIndex = headIndex + moveHead.fold(0)(_.fold(_ => -1, _ => 1)),
+              headIndex = headIndex + x.moveHead.fold(0)(_.fold(_ => -1, _ => 1)),
               tape = transitionTo.write.fold(tape) { write =>
                 tape.take(headIndex.toInt) ::: Output(write) :: tape.drop(headIndex.toInt + 1)
               }
-            ).asRight
+            ).asLeft
         }
 
       }
 
-      def nextUntilTerminal: (TransitionFrom[S, I, O], TerminalState) =
-        this.tailRecM[Id, (TransitionFrom[S, I, O], TerminalState)](_.next.swap)
+      def generateToEnd(isGenerating: Boolean): LazyList[List[I]] =
+        LazyList.from(generate(isGenerating)).flatMap {
+          case (None, Left(isGenerating -> continue))        => continue.generateToEnd(isGenerating)
+          case (Some(input), Left(isGenerating -> continue)) => continue.generateToEnd(isGenerating).map(input :: _)
+          case (inputOpt, Right(Accept))                     => List(inputOpt.toList)
+        }
+
+      /**
+        * Performs a single iteration in the process of attempting to find input sequences that satisfy the machine.
+        * - Returns nil if the machine's initial tape configuration has now been determined as unacceptable.
+        * - Returns one element if we're continuing with the same initial tape configuration.
+        * - Returns multiple elements if we're exploring further different initial tape configurations.
+        * Note: 'initial tape configuration' refers to the input sequence that was initially fed to the machine. Since
+        * turing machines can only see the value under the head, we generate the 'initial tape configuration' as we go:
+        * each time we hit the end of the tape, we add another element that would match a transition, up to a maximum
+        * tape length defined by [[MachineInstance.maxGeneratedTapeLength]] to keep the process bounded.
+        */
+      def generate(isGenerating: Boolean): List[(Option[I], Either[(Boolean, MachineInstance[S, I, O]), Accept.type])] =
+        if (head === RightEndMarker && isGenerating) {
+          val possibleExpansions =
+            if (tape.size === MachineInstance.maxGeneratedTapeLength)
+              Nil
+            else
+              machine.transitionsByState.getOrElse(current, Nil).collect {
+                case Normal(_, input: Input[I], _, _) => input
+              }
+
+          val alternativeMachines =
+            possibleExpansions.map { input =>
+              (
+                copy(
+                  tape = tape :+ input
+                ),
+                true,
+                Some(input.value)
+              )
+            }
+
+          val allMachines = (this, false, None) :: alternativeMachines
+
+          allMachines.flatMap {
+            case (machine, isGenerating, generatedInput) => machine.parseForGenerator(isGenerating, generatedInput)
+          }
+        }
+        else
+          parseForGenerator(isGenerating, None)
+
+      private def parseForGenerator(
+        isGenerating: Boolean,
+        generatedInput: Option[I]
+      ): List[(Option[I], Either[(Boolean, MachineInstance[S, I, O]), Accept.type])] =
+        parse match {
+          case Left(continue)     => List(generatedInput -> Left(isGenerating -> continue))
+          case Right(_ -> Accept) => List(generatedInput -> Right(Accept))
+          case Right(_ -> Reject) => Nil
+        }
 
     }
 
-    private object MachineInstance {
+    object MachineInstance {
 
-      def from[S, I, O](machine: Machine[S, I, O], input: List[I]): MachineInstance[S, I, O] =
+      private val maxGeneratedTapeLength = 4
+
+      def from[S: Eq, I, O](machine: Machine[S, I, O], input: List[I]): MachineInstance[S, I, O] =
         MachineInstance(machine, machine.start, input.map(Input.apply), 0)
 
     }
 
-    def isValidInput[S, I, O](machine: Machine[S, I, O], input: List[I]): (TransitionFrom[S, I, O], Boolean) =
-      MachineInstance.from(machine, input).nextUntilTerminal match {
+  }
+
+  object TuringMachineParser {
+
+    def isValidInput[S: Eq, I, O](machine: Machine[S, I, O], input: List[I]): (TransitionFrom[S, I, O], Boolean) =
+      MachineInstance.from(machine, input).parseToEnd match {
         case (from, state) => from -> state.accepted
       }
+
+  }
+
+  object TuringMachineGenerator {
+
+    def generateInput[S: Eq, I, O](machine: Machine[S, I, O]): LazyList[List[I]] =
+      MachineInstance.from(machine, Nil).generateToEnd(true)
 
   }
 
@@ -177,6 +256,8 @@ object TuringMachineSpike extends App {
     sealed trait Binary
 
     object Binary {
+      implicit val eq: Eq[Binary] = Eq.fromUniversalEquals
+
       case object One  extends Binary
       case object Zero extends Binary
     }
@@ -216,6 +297,8 @@ object TuringMachineSpike extends App {
       sealed trait State
 
       object State {
+        implicit val eq: Eq[State] = Eq.fromUniversalEquals
+
         case object Start     extends State
         case object HaveZero  extends State
         case object HaveOne   extends State
@@ -223,6 +306,8 @@ object TuringMachineSpike extends App {
         case object MatchOne  extends State
         case object Back      extends State
       }
+
+      import State._
 
       val machine: Machine[State, Binary, Unit] =
         Machine(
@@ -269,18 +354,23 @@ object TuringMachineSpike extends App {
 
   }
 
-  val (lastTransition, isValid) =
-    TuringMachineParser.isValidInput(
-      Example2.machine,
-      Example2.validExample
-    )
+  def printSequence[S: Eq, I, O](title: String, machine: Machine[S, I, O]): Unit =
+    println(s"Valid $title: \n${TuringMachineGenerator.generateInput(machine).take(20).toList.mkString("\n")}")
 
-  if (!isValid)
-    println(s"Rejected by: $lastTransition")
-  println(s"Valid: $isValid")
+  printSequence("Alternating", Example1.machine)
+  printSequence("Palindromes", Example2.machine)
 
-  // Todo: build a 'generator' that starts from 'start' and traverses all paths to 'end', paying respect to
-  //  the direction we've travelled in (left, right, nowhere) and the input symbols we've relied on, in order
-  //  to generate a valid sequence. Note: 'Binary' will be 'UnboundRelation' in future... no it won't... as the
-  //  relation may be dependent on something more dynamic, e.g. the last number.
+//  val (lastTransition, isValid) =
+//    TuringMachineParser.isValidInput(
+//      Example2.machine,
+//      Example2.invalidExample
+//    )
+//
+//  println(s"Input: ${Example2.invalidExample}")
+//
+//  if (!isValid)
+//    println(s"Rejected by: $lastTransition")
+//
+//  println(s"Valid: $isValid")
+
 }
