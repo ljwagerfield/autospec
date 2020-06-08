@@ -76,20 +76,23 @@ class TuringMachineSpec extends TuringMachineSpecBase {
     }
   }
 
+  /**
+    * Hardcoded password (a machine that only matches against one baked-in sequence of input symbols).
+    *
+    * Represents a machine that is not feasibly linearly searchable from the 'start' node to the 'accept' node.
+    *
+    * Specifically designed to:
+    * - Not terminate until Right End Marker (i.e. regardless of if we've already determined the input is invalid).
+    * - Causes the sequence to keep having new elements appended to it, assuming the generator was implemented using a
+    *   naive linear search from the start state, which would cause `62^10` symbols to be generated.
+    * - Uses a random password, to avoid accidentally exercising an optimal path in the generator, i.e. if the
+    *   generator followed a depth-first search starting from the head transition, and our password was 'aaaaaaaaaa',
+    *   then it would generate a valid password on the first iteration.
+    */
   object Password {
     val chars: String    = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     val password: String = Random.alphanumeric.take(10).toList.mkString
 
-    /**
-      * Specifically designed to:
-      * - Not terminate until Right End Marker (i.e. stay in a non-terminal state w/ transitions that match on it,
-      *   even though we've deemed the password invalid).
-      * - Causes the sequence to keep having new elements appended to it, if the generator was implemented using a
-      *   naive linear search from the start state, thus causing `62^10` symbols to be generated.
-      * - Use a random password, to avoid accidentally exercising an optimal path in the generator, i.e. if the
-      *   generator followed a depth-first search starting from the head transition, and our password was 'aaaaaaaaaa',
-      *   then it would generate a valid password on the first iteration.
-      */
     val machine: Machine[Int, Char, Unit] =
       Machine(
         0,
