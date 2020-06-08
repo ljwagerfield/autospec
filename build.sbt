@@ -85,11 +85,12 @@ lazy val commonScalaSettings = commonSettings ++: Seq(
   ),
   resolvers += JCenterRepository,
   libraryDependencies ++= Seq(
-    "org.scalatest"            %% "scalatest"    % "3.1.0"         % Test,
-    "org.scalacheck"           %% "scalacheck"   % "1.14.3"        % Test,
-    "org.mockito"               % "mockito-all"  % "1.10.19"       % Test,
-    "com.softwaremill.macwire" %% "macros"       % "2.3.3"         % Provided, // Provided because it's used at compile-time only.
-    "com.github.ghik"          %% "silencer-lib" % silencerVersion % Provided cross CrossVersion.full,
+    "org.scalatest"            %% "scalatest"       % "3.1.0"         % Test,
+    "org.scalatestplus"        %% "scalacheck-1-14" % "3.1.0.0"       % Test,
+    "org.scalacheck"           %% "scalacheck"      % "1.14.0"        % Test,
+    "org.mockito"               % "mockito-all"     % "1.10.19"       % Test,
+    "com.softwaremill.macwire" %% "macros"          % "2.3.3"         % Provided, // Provided because it's used at compile-time only.
+    "com.github.ghik"          %% "silencer-lib"    % silencerVersion % Provided cross CrossVersion.full,
     compilerPlugin("org.typelevel" %% "kind-projector" % "0.10.3"),
     compilerPlugin(
       "com.github.ghik" %% "silencer-plugin" % silencerVersion cross CrossVersion.full

@@ -3,7 +3,7 @@ package autospec.common.turing
 import autospec.common.HasKey
 import autospec.common.turing.TapeSymbol.{IOSymbol, LeftEndMarker, RightEndMarker}
 
-sealed trait Transition[+S, +I, +O] {
+sealed trait Transition[+S, +I, +O] extends Product {
   def from: TransitionFrom[S, I, O] = TransitionFrom(current, read)
   def to: TransitionTo[S, I, O]     = TransitionTo(write, move, next)
   def current: S

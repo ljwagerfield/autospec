@@ -119,17 +119,4 @@ object TuringMachineSpike extends App {
   //printSequence("Alternating", Example1.machine)
   printSequence("Palindromes", Example2.machine)
 
-//  val (lastTransition, isValid) =
-//    TuringMachineParser.isValidInput(
-//      Example2.machine,
-//      Example2.invalidExample
-//    )
-//
-//  println(s"Input: ${Example2.invalidExample}")
-//
-//  if (!isValid)
-//    println(s"Rejected by: $lastTransition")
-//
-//  println(s"Valid: $isValid")
-
 }
