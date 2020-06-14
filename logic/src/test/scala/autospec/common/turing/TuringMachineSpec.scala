@@ -2,7 +2,7 @@ package autospec.common.turing
 
 import autospec.common.DistinctByKey
 import autospec.common.turing.MachineState.{Accept, Reject}
-import autospec.common.turing.TapeSymbol.{Input, RightEndMarker}
+import autospec.common.turing.TapeSymbol.{Input, LeftEndMarker, RightEndMarker}
 import autospec.common.turing.Transition.{FromMiddle, FromRightEnd}
 import cats.Eq
 import cats.implicits._
@@ -18,9 +18,22 @@ class TuringMachineSpec extends TuringMachineSpecBase {
 
   "Turing Machines" should {
     "be capable of expressing all grammars, such as..." when {
-      // Todo: type-0 grammar.
+      // Todo: type-0 grammar (a^n | n is prime)... i.e sequences of a prime length.
+      //  https://stackoverflow.com/questions/10116111/turing-machine-to-accept-strings-of-prime-lengths
+      //  https://math.stackexchange.com/questions/1151132/designing-a-turing-machine-for-primality-check
+      //  https://cs.stackexchange.com/questions/116024/turing-machine-to-return-all-prime-numbers
 
-      // Todo: type-1 grammar.
+      verifyMachine(
+        name    = "Bach sequences (type-1 grammar)",
+        machine = BachSequences.machine,
+        input   = BachSequences.mixedGenerator
+      )(
+        function = x => {
+          val bySymbol  = x.groupBy(identity)
+          val bySetSize = bySymbol.values.groupBy(_.size)
+          bySymbol.size == abcCardinality && bySetSize.size == 1
+        }
+      )
 
       verifyMachine(
         name    = "palindromes (type-2 grammar)",
@@ -114,20 +127,82 @@ class TuringMachineSpec extends TuringMachineSpecBase {
     * - Turing Machines
     *
     * Examples (requires each symbol to appear same number of times, in any order):
-    * - 10
-    * - 1100
-    * - 1001
+    * - ABC
+    * - ABACCB
+    * - ABCABCABC
     *
-    * See:
-    * - Pullum, Geoffrey K. (1983). Context-freeness and the computer processing of human languages. Proc. 21st An
+    * Note:
+    * - 3 symbols must be used: apparently 1 is regular, 2 is context-free and 3 is context-sensitive.
+    *   See: http://www.cs.ru.nl/~herman/onderwijs/2016TnA/lecture7.pdf
+    * - "Bach Sequences" was coined in "Context-freeness and the computer processing of human languages"
+    *   (Pullum, Geoffrey K. (1983))
     */
   object BachSequences {
-    // Approach:
-    // Pick up a symbol
-    // Delete it
-    // Scan list and delete next occurrence of other symbol
-    // If cannot find an occurrence of other symbol, abort
-    // Go back to start and do it again.
+    implicit val eq: Eq[State] = Eq.fromUniversalEquals
+
+    sealed trait State
+    case object Start  extends State
+    case object Exit   extends State
+    case object FindBC extends State
+    case object FindAC extends State
+    case object FindAB extends State
+    case object FindA  extends State
+    case object FindB  extends State
+    case object FindC  extends State
+    case object Back   extends State
+
+    val machine: Machine[State, ABC, Unit] =
+      Machine(
+        Start,
+        DistinctByKey(
+          (Start, ()) -> (Start, (), right),  // Find first symbol.
+          (Start, A)  -> (FindBC, (), right), // Erase it.
+          (Start, B)  -> (FindAC, (), right), // ...
+          (Start, C)  -> (FindAB, (), right), // ...
+          (
+            Start,
+            RightEndMarker
+          )                     -> (Exit, RightEndMarker, left), // All symbols evenly erased, so accept, but only if non-empty.
+          (Exit, ())            -> (Accept, (), hold),           // ...
+          (FindBC, A)           -> (FindBC, A, right),           // Find next occurrence of other symbol (1 of 2).
+          (FindBC, ())          -> (FindBC, (), right),          // ...
+          (FindAC, B)           -> (FindAC, B, right),           // ...
+          (FindAC, ())          -> (FindAC, (), right),          // ...
+          (FindAB, C)           -> (FindAB, C, right),           // ...
+          (FindAB, ())          -> (FindAB, (), right),          // ...
+          (FindBC, B)           -> (FindC, (), right),           // Erase it.
+          (FindBC, C)           -> (FindB, (), right),           // ...
+          (FindAC, A)           -> (FindC, (), right),           // ...
+          (FindAC, C)           -> (FindA, (), right),           // ...
+          (FindAB, A)           -> (FindB, (), right),           // ...
+          (FindAB, B)           -> (FindA, (), right),           // ...
+          (FindA, B)            -> (FindA, B, right),            // Find next occurrence of other symbol (2 of 2).
+          (FindA, C)            -> (FindA, C, right),            // ...
+          (FindA, ())           -> (FindA, (), right),           // ...
+          (FindB, A)            -> (FindB, A, right),            // ...
+          (FindB, C)            -> (FindB, C, right),            // ...
+          (FindB, ())           -> (FindB, (), right),           // ...
+          (FindC, A)            -> (FindC, A, right),            // ...
+          (FindC, B)            -> (FindC, B, right),            // ...
+          (FindC, ())           -> (FindC, (), right),           // ...
+          (FindA, A)            -> (Back, (), left),             // Erase it.
+          (FindB, B)            -> (Back, (), left),             // ...
+          (FindC, C)            -> (Back, (), left),             // ...
+          (Back, A)             -> (Back, A, left),              // Go back to start.
+          (Back, B)             -> (Back, B, left),              // ...
+          (Back, C)             -> (Back, C, left),              // ...
+          (Back, ())            -> (Back, (), left),             // ...
+          (Back, LeftEndMarker) -> (Start, LeftEndMarker, right) // ...
+        )
+      )
+
+    val validGenerator: Gen[List[ABC]] = for {
+      subLength <- Gen.choose(0, maxSequenceSize / abcCardinality)
+      sorted     = List.fill(subLength)(A) ::: List.fill(subLength)(B) ::: List.fill(subLength)(C)
+      shuffled   = Random.shuffle(sorted)
+    } yield shuffled
+
+    val mixedGenerator: Gen[List[ABC]] = Gen.oneOf(validGenerator, Gen.listOf(abcGenerator))
   }
 
   /**

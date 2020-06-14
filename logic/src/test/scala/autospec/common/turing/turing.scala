@@ -1,8 +1,8 @@
 package autospec.common
 
 import autospec.common.turing.MachineState.{Accept, NonTerminalState, Reject, TerminalState}
-import autospec.common.turing.TapeSymbol.{Input, Output, RightEndMarker}
-import autospec.common.turing.Transition.{FromMiddle, FromRightEnd}
+import autospec.common.turing.TapeSymbol.{Input, LeftEndMarker, Output, RightEndMarker}
+import autospec.common.turing.Transition.{FromLeftEnd, FromMiddle, FromRightEnd}
 import cats.implicits._
 
 /**
@@ -26,11 +26,25 @@ package object turing {
     FromRightEnd(fromState, move, Some(NonTerminalState(toState)))
   }
 
+  implicit def tupledRuleLEM[S, I, O](
+    rule: ((S, LeftEndMarker.type), (S, LeftEndMarker.type, Option[Right[Unit, Unit]]))
+  ): Transition[S, I, O] = {
+    val ((fromState, _), (toState, _, move)) = rule
+    FromLeftEnd(fromState, move, Some(NonTerminalState(toState)))
+  }
+
   implicit def tupledRuleREMTerminal[S, I, O](
     rule: ((S, RightEndMarker.type), (TerminalState, RightEndMarker.type, Option[Left[Unit, Unit]]))
   ): Transition[S, I, O] = {
     val ((fromState, _), (toState, _, move)) = rule
     FromRightEnd(fromState, move, Some(toState))
+  }
+
+  implicit def tupledRuleLEMTerminal[S, I, O](
+    rule: ((S, LeftEndMarker.type), (TerminalState, LeftEndMarker.type, Option[Right[Unit, Unit]]))
+  ): Transition[S, I, O] = {
+    val ((fromState, _), (toState, _, move)) = rule
+    FromLeftEnd(fromState, move, Some(toState))
   }
 
   implicit def tupledRuleOO[S, I, O](rule: ((S, O), (S, O, Option[Either[Unit, Unit]]))): Transition[S, I, O] = {
