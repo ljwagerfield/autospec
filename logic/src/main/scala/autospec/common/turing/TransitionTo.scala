@@ -1,3 +1,3 @@
 package autospec.common.turing
 
-case class TransitionTo[+S, +I, +O](write: Option[O], move: Option[Either[Unit, Unit]], next: Option[MachineState[S]])
+case class TransitionTo[+S, +I, +O](leave: TapeSymbol[I, O], move: Option[Either[Unit, Unit]], next: MachineState[S])

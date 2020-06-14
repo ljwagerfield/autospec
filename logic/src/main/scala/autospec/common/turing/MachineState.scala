@@ -1,6 +1,7 @@
 package autospec.common.turing
 
 import autospec.common.turing.MachineState.{Accept, NonTerminalState, Reject}
+import cats.Eq
 
 sealed trait MachineState[+S] {
 
@@ -13,6 +14,7 @@ sealed trait MachineState[+S] {
 }
 
 object MachineState {
+  implicit def eq[S]: Eq[MachineState[S]] = Eq.fromUniversalEquals
 
   sealed trait TerminalState extends MachineState[Nothing] {
 

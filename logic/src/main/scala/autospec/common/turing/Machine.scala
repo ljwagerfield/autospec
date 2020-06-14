@@ -23,17 +23,21 @@ case class Machine[S: Eq, I, O](
   transitions: DistinctByKey[Transition[S, I, O]]
 ) {
 
-  lazy val transitionsByState: Map[S, List[Transition[S, I, O]]] =
+  lazy val transitionsFromState: Map[S, List[Transition[S, I, O]]] =
     transitions.value.values.groupBy(_.current).view.mapValues(_.toList).toMap
 
-  def parse(input: List[I]): (TransitionFrom[S, I, O], Boolean) =
-    MachineInstance
-      .from(machine = this, input = input)
-      .parseToEnd match { case (from, state) => from -> state.accepted }
+  lazy val transitionsToState: Map[MachineState[S], List[Transition[S, I, O]]] =
+    transitions.value.values.groupBy(_.nextState).view.mapValues(_.toList).toMap
+
+  def parse(input: List[I]): Boolean =
+    MachineConfiguration
+      .forParsing(machine = this, input = input)
+      .parseToEnd
+      .accepted
 
   def generate: LazyList[List[I]] =
-    MachineInstance
-      .from(machine = this, input = Nil)
+    MachineConfiguration
+      .forGenerating(machine = this)
       .generateToEnd
 
 }

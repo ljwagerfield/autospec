@@ -11,6 +11,7 @@ abstract class TuringMachineSpecBase extends BaseSpec with Checkers {
   implicit val eq: Eq[Binary]          = Eq.fromUniversalEquals
   implicit val eq2: Eq[Option[Binary]] = Eq.fromUniversalEquals
   val binaryGenerator: Gen[Binary]     = Gen.oneOf(Zero, One)
+  val maxSequenceSize                  = 10
 
   sealed trait Binary {
     def flip: Binary
@@ -22,21 +23,23 @@ abstract class TuringMachineSpecBase extends BaseSpec with Checkers {
   def verifyMachine[S, I, O](name: String, machine: Machine[S, I, O], input: Gen[List[I]])(
     function: List[I] => Boolean
   ): Unit = {
+
     s"parsing $name" in {
       check(forAll(input) { s =>
         val expected = function(s)
-        val actual   = machine.parse(s)._2
-        println(expected.toString + " = " + s.toString())
+        val actual   = machine.parse(s)
         expected == actual
       })
     }
 
     s"generating $name" in {
-      val sequences              = machine.generate.take(100)
-      val nonEmptySequenceExists = sequences.exists(_.nonEmpty)
-      val allSequencesValid      = sequences.forall(machine.parse(_)._2)
-      nonEmptySequenceExists shouldBe true
-      allSequencesValid shouldBe true
+      val validSequences = machine.generate.takeWhile(_.length <= maxSequenceSize).toList
+
+      check(forAll(input.filter(_.size <= maxSequenceSize)) { s =>
+        val expected = function(s)
+        val actual   = validSequences.contains(s)
+        expected == actual
+      })
     }
   }
 

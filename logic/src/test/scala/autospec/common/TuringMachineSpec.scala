@@ -43,28 +43,16 @@ class TuringMachineSpec extends TuringMachineSpecBase {
     }
 
     /**
-      * This test asserts the implementation of the generator does not linearly search all possible input sequences to
-      * find the valid sequence(s), as this would be too slow for machines that have a small number of valid sequences
-      * in comparison to the universe of all possible sequences.
+      * The search space for input sequences (i.e. the universal set from which a valid input sequence is found) can be
+      * large, so it's important our method for finding a valid sequence is faster than O(N) for all machines. Formally,
+      * N is `X^Y`, where X is the input alphabet size, and Y is the input sequence size.
       *
-      * When thinking about time complexity, consider the set of all possible inputs (both valid and invalid) as a
-      * "perfect m-ary tree" of height X and degree Y. X is the maximum sequence length we will generate and Y is the
-      * number of symbols in the input alphabet. Each node represents an input sequence, and its ancestors are the set
-      * of all its prefixes, with the root node being nil. The tree has `Y^X` nodes in it, and only a subset are valid.
+      * We verify O(logN) time complexity by running the generator for a machine where N is 839 quadrillion `(62^10)`,
+      * and only one valid input sequence exists in the whole set.
       *
-      * Worse-case scenario (demonstrated by this test): a large tree, with only one valid node (i.e. a password!).
-      *
-      * In our example, we have a 10-letter alphanumeric password, which gives us N = `62^10` (839 quadrillion) nodes...
-      * but only one node is valid. If we start from the root node (nil), and append all possible input symbols, we will
-      * arrive at each of the root's immediate children. If we repeat this process, we will effectively be performing a
-      * breadth-first search, meaning we'd generate 839 quadrillion symbols in total. However, if we start from the
-      * valid node, and traverse our way back to the root node by only prepending symbols that link us to prior states,
-      * until we reach the start state, we would only need to generate O(logN) symbols (10 in this case).
-      *
-      * We verify O(logN) time complexity by running the generator for 2 seconds.
-      * If it completes, it cannot be O(N) as N is 839 quadrillion... so it must be O(logN).
+      * If it completes within 2 seconds, it cannot be O(N)... so it must be O(logN).
       */
-    "generate valid sequences in O(logN) time" in {
+    "generates a valid sequence in O(logN) time, where N is X^Y, X is the input alphabet size, and Y is the input sequence size" in {
       implicit val scheduler: Scheduler = Scheduler.traced
       try Task.evalAsync {
         Password.machine.generate.head.mkString shouldBe Password.password
@@ -79,7 +67,8 @@ class TuringMachineSpec extends TuringMachineSpecBase {
   /**
     * Hardcoded password (a machine that only matches against one baked-in sequence of input symbols).
     *
-    * Represents a machine that is not feasibly linearly searchable from the 'start' node to the 'accept' node.
+    * Represents a machine that is not feasibly linearly searchable from the 'start' node to the 'accept' node, as it
+    * has only one valid input sequence in a huge universe of possible input sequences.
     *
     * Specifically designed to:
     * - Not terminate until Right End Marker (i.e. regardless of if we've already determined the input is invalid).
@@ -140,7 +129,7 @@ class TuringMachineSpec extends TuringMachineSpecBase {
     val validGenerator: Gen[List[Binary]] =
       for {
         seed   <- binaryGenerator
-        length <- Gen.choose(0, 10)
+        length <- Gen.choose(0, maxSequenceSize)
       } yield (0 until length).toList.map { x =>
         if (x % 2 == 0)
           seed
@@ -210,7 +199,8 @@ class TuringMachineSpec extends TuringMachineSpecBase {
       )
 
     val validGenerator: Gen[List[Binary]] = for {
-      base   <- Gen.listOf(binaryGenerator)
+      length <- Gen.choose(0, maxSequenceSize)
+      base   <- Gen.listOfN((length - 1) / 2, binaryGenerator)
       middle <- Gen.option(binaryGenerator)
     } yield base ::: middle.toList ::: base.reverse
 

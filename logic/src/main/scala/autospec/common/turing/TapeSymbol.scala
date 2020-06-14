@@ -2,10 +2,11 @@ package autospec.common.turing
 
 import cats.Eq
 
-sealed trait TapeSymbol[+I, +O]
+sealed trait TapeSymbol[+I, +O] extends Product
 
 object TapeSymbol {
   implicit def eq[I, O]: Eq[TapeSymbol[I, O]] = Eq.fromUniversalEquals
+  implicit val eq2: Eq[EndMarker]             = Eq.fromUniversalEquals
 
   sealed trait IOSymbol[+I, +O]  extends TapeSymbol[I, O]
   case class Input[I](value: I)  extends IOSymbol[I, Nothing]
