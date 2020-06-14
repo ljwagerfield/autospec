@@ -18,6 +18,18 @@ class TuringMachineSpec extends TuringMachineSpecBase {
 
   "Turing Machines" should {
     "be capable of expressing all grammars, such as..." when {
+      // Todo: type-0 grammar.
+
+      // Todo: type-1 grammar.
+
+      verifyMachine(
+        name    = "palindromes (type-2 grammar)",
+        machine = Palindromes.machine,
+        input   = Palindromes.mixedGenerator
+      )(
+        function = x => x.reverse == x
+      )
+
       verifyMachine(
         name    = "alternating sequences (type-3 grammar)",
         machine = AlternatingSequences.machine,
@@ -31,16 +43,6 @@ class TuringMachineSpec extends TuringMachineSpecBase {
           )
         }._1
       )
-
-      verifyMachine(
-        name    = "palindromes (type-2 grammar)",
-        machine = Palindromes.machine,
-        input   = Palindromes.mixedGenerator
-      )(
-        function = x => x.reverse == x
-      )
-
-      // Todo: type-1 grammar.
     }
 
     /**
@@ -106,47 +108,26 @@ class TuringMachineSpec extends TuringMachineSpecBase {
   }
 
   /**
-    * Alternating sequences are a type-3 grammar.
+    * Bach Sequences are a type-1 grammar.
     *
     * They can be expressed by:
     * - Turing Machines
-    * - Pushdown Automatons
-    * - Finite State Machines (FSMs)
     *
-    * Examples:
-    * - 1
-    * - 1010
-    * - 01010
+    * Examples (requires each symbol to appear same number of times, in any order):
+    * - 10
+    * - 1100
+    * - 1001
+    *
+    * See:
+    * - Pullum, Geoffrey K. (1983). Context-freeness and the computer processing of human languages. Proc. 21st An
     */
-  object AlternatingSequences {
-
-    val machine: Machine[Option[Binary], Binary, Unit] =
-      Machine(
-        None,
-        DistinctByKey(
-          (None, RightEndMarker)      -> (Accept, RightEndMarker, hold), // Empty sequence.
-          (None, Zero)                -> (Zero.some, Zero, right),       // Start of sequence.
-          (None, One)                 -> (One.some, One, right),         // ...
-          (Zero.some, One)            -> (One.some, One, right),         // Middle of sequence.
-          (One.some, Zero)            -> (Zero.some, Zero, right),       // ...
-          (Zero.some, RightEndMarker) -> (Accept, RightEndMarker, hold), // End of non-empty sequence.
-          (One.some, RightEndMarker)  -> (Accept, RightEndMarker, hold)  // ...
-        )
-      )
-
-    val validGenerator: Gen[List[Binary]] =
-      for {
-        seed   <- binaryGenerator
-        length <- Gen.choose(0, maxSequenceSize)
-      } yield (0 until length).toList.map { x =>
-        if (x % 2 == 0)
-          seed
-        else
-          seed.flip
-      }
-
-    val mixedGenerator: Gen[List[Binary]] = Gen.oneOf(validGenerator, Gen.listOf(binaryGenerator))
-
+  object BachSequences {
+    // Approach:
+    // Pick up a symbol
+    // Delete it
+    // Scan list and delete next occurrence of other symbol
+    // If cannot find an occurrence of other symbol, abort
+    // Go back to start and do it again.
   }
 
   /**
@@ -210,26 +191,47 @@ class TuringMachineSpec extends TuringMachineSpecBase {
   }
 
   /**
-    * Bach Sequences are a type-1 grammar.
+    * Alternating sequences are a type-3 grammar.
     *
     * They can be expressed by:
     * - Turing Machines
+    * - Pushdown Automatons
+    * - Finite State Machines (FSMs)
     *
-    * Examples (requires each symbol to appear same number of times, in any order):
-    * - 10
-    * - 1100
-    * - 1001
-    *
-    * See:
-    * - Pullum, Geoffrey K. (1983). Context-freeness and the computer processing of human languages. Proc. 21st An
+    * Examples:
+    * - 1
+    * - 1010
+    * - 01010
     */
-  object BachSequences {
-    // Approach:
-    // Pick up a symbol
-    // Delete it
-    // Scan list and delete next occurrence of other symbol
-    // If cannot find an occurrence of other symbol, abort
-    // Go back to start and do it again.
+  object AlternatingSequences {
+
+    val machine: Machine[Option[Binary], Binary, Unit] =
+      Machine(
+        None,
+        DistinctByKey(
+          (None, RightEndMarker)      -> (Accept, RightEndMarker, hold), // Empty sequence.
+          (None, Zero)                -> (Zero.some, Zero, right),       // Start of sequence.
+          (None, One)                 -> (One.some, One, right),         // ...
+          (Zero.some, One)            -> (One.some, One, right),         // Middle of sequence.
+          (One.some, Zero)            -> (Zero.some, Zero, right),       // ...
+          (Zero.some, RightEndMarker) -> (Accept, RightEndMarker, hold), // End of non-empty sequence.
+          (One.some, RightEndMarker)  -> (Accept, RightEndMarker, hold)  // ...
+        )
+      )
+
+    val validGenerator: Gen[List[Binary]] =
+      for {
+        seed   <- binaryGenerator
+        length <- Gen.choose(0, maxSequenceSize)
+      } yield (0 until length).toList.map { x =>
+        if (x % 2 == 0)
+          seed
+        else
+          seed.flip
+      }
+
+    val mixedGenerator: Gen[List[Binary]] = Gen.oneOf(validGenerator, Gen.listOf(binaryGenerator))
+
   }
 
 }
