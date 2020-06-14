@@ -22,7 +22,7 @@ object Transition {
       override def key: Transition[S, I, O] => TransitionFrom[S, I, O] = _.from
     }
 
-  case class Normal[+S, I, O](
+  case class FromMiddle[+S, I, O](
     current: S,
     read: IOSymbol[I, O],
     write: Option[O],

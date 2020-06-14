@@ -1,8 +1,9 @@
-package autospec.common
+package autospec.common.turing
 
-import autospec.common.turing.TapeSymbol.{Input, Output}
-import autospec.common.turing.Transition.{FromRightEnd, Normal}
-import autospec.common.turing._
+import autospec.common.DistinctByKey
+import autospec.common.turing.MachineState.{Accept, Reject}
+import autospec.common.turing.TapeSymbol.{Input, RightEndMarker}
+import autospec.common.turing.Transition.{FromMiddle, FromRightEnd}
 import cats.Eq
 import cats.implicits._
 import monix.eval.Task
@@ -86,13 +87,19 @@ class TuringMachineSpec extends TuringMachineSpecBase {
       Machine(
         0,
         DistinctByKey(
-          FromRightEnd(password.length, noMove, accept)
+          FromRightEnd(password.length, None, accept)
             :: password.zipWithIndex.toList.flatMap {
               case (passwordChar, index) =>
                 chars.map { char =>
-                  Normal(index, Input(char), noWrite, moveRight, nextState(if (passwordChar == char) index + 1 else -1))
+                  FromMiddle(
+                    index,
+                    Input(char),
+                    noWrite,
+                    right,
+                    nextState(if (passwordChar == char) index + 1 else -1)
+                  )
                 }
-            } ::: chars.toList.map(char => Normal(-1, Input(char), noWrite, moveRight, noStateChange))
+            } ::: chars.toList.map(char => FromMiddle(-1, Input(char), noWrite, right, noStateChange))
         )
       )
 
@@ -105,24 +112,25 @@ class TuringMachineSpec extends TuringMachineSpecBase {
     * - Turing Machines
     * - Pushdown Automatons
     * - Finite State Machines (FSMs)
+    *
+    * Examples:
+    * - 1
+    * - 1010
+    * - 01010
     */
   object AlternatingSequences {
 
     val machine: Machine[Option[Binary], Binary, Unit] =
       Machine(
         None,
-        DistinctByKey[Transition[Option[Binary], Binary, Unit]](
-          // Empty sequence.
-          FromRightEnd(None, noMove, accept),
-          // Start of non-empty sequence.
-          Normal(None, Input(Zero), noWrite, moveRight, nextState(Zero.some)),
-          Normal(None, Input(One), noWrite, moveRight, nextState(One.some)),
-          // Middle of non-empty sequence.
-          Normal(Zero.some, Input(One), noWrite, moveRight, nextState(One.some)),
-          Normal(One.some, Input(Zero), noWrite, moveRight, nextState(Zero.some)),
-          // End of non-empty sequence.
-          FromRightEnd(Zero.some, noMove, accept),
-          FromRightEnd(One.some, noMove, accept)
+        DistinctByKey(
+          (None, RightEndMarker)      -> (Accept, RightEndMarker, hold), // Empty sequence.
+          (None, Zero)                -> (Zero.some, Zero, right),       // Start of sequence.
+          (None, One)                 -> (One.some, One, right),         // ...
+          (Zero.some, One)            -> (One.some, One, right),         // Middle of sequence.
+          (One.some, Zero)            -> (Zero.some, Zero, right),       // ...
+          (Zero.some, RightEndMarker) -> (Accept, RightEndMarker, hold), // End of non-empty sequence.
+          (One.some, RightEndMarker)  -> (Accept, RightEndMarker, hold)  // ...
         )
       )
 
@@ -147,6 +155,11 @@ class TuringMachineSpec extends TuringMachineSpecBase {
     * They can be expressed by:
     * - Turing Machines
     * - Pushdown Automatons
+    *
+    * Examples:
+    * - 1
+    * - 110011
+    * - 0010100
     */
   object Palindromes {
     implicit val eq: Eq[State] = Eq.fromUniversalEquals
@@ -163,38 +176,27 @@ class TuringMachineSpec extends TuringMachineSpecBase {
       Machine(
         Start,
         DistinctByKey(
-          // Empty sequence.
-          FromRightEnd(Start, noMove, accept),
-          // Starting again, but nothing left to process.
-          Normal(Start, Output(()), noWrite, noMove, accept),
-          // Start of non-empty sequence.
-          Normal(Start, Input(Zero), write(()), moveRight, nextState(HaveZero)),
-          Normal(Start, Input(One), write(()), moveRight, nextState(HaveOne)),
-          // Skip over other symbols, until we reach the end.
-          Normal(HaveZero, Input(One), noWrite, moveRight, noStateChange),
-          Normal(HaveZero, Input(Zero), noWrite, moveRight, noStateChange),
-          Normal(HaveOne, Input(One), noWrite, moveRight, noStateChange),
-          Normal(HaveOne, Input(Zero), noWrite, moveRight, noStateChange),
-          // Reached the end.
-          Normal(HaveZero, Output(()), noWrite, moveLeft, nextState(MatchZero)),
-          Normal(HaveOne, Output(()), noWrite, moveLeft, nextState(MatchOne)),
-          FromRightEnd(HaveZero, moveLeft, nextState(MatchZero)),
-          FromRightEnd(HaveOne, moveLeft, nextState(MatchOne)),
-          // Verify last character matches first character...
-          // ... matches, so reset back to start and continue.
-          Normal(MatchZero, Input(Zero), write(()), moveLeft, nextState(Back)),
-          Normal(MatchOne, Input(One), write(()), moveLeft, nextState(Back)),
-          // ... mismatches, so reject.
-          Normal(MatchZero, Input(One), noWrite, noMove, reject),
-          Normal(MatchOne, Input(Zero), noWrite, noMove, reject),
-          // ... turns out we grabbed the last character, so accept it.
-          Normal(MatchZero, Output(()), noWrite, noMove, accept),
-          Normal(MatchOne, Output(()), noWrite, noMove, accept),
-          // Continue going back to start.
-          Normal(Back, Input(Zero), noWrite, moveLeft, noStateChange),
-          Normal(Back, Input(One), noWrite, moveLeft, noStateChange),
-          // Once at the start, repeat the process.
-          Normal(Back, Output(()), noWrite, moveRight, nextState(Start))
+          (Start, RightEndMarker)    -> (Accept, RightEndMarker, hold),    // Empty sequence.
+          (Start, Zero)              -> (HaveZero, (), right),             // Start of sequence.
+          (Start, One)               -> (HaveOne, (), right),              // ...
+          (Start, ())                -> (Accept, (), hold),                // Starting again, but nothing left to process.
+          (HaveZero, One)            -> (HaveZero, One, right),            // Skip over other symbols, until we reach the end.
+          (HaveZero, Zero)           -> (HaveZero, Zero, right),           // ...
+          (HaveOne, One)             -> (HaveOne, One, right),             // ...
+          (HaveOne, Zero)            -> (HaveOne, Zero, right),            // ...
+          (HaveZero, ())             -> (MatchZero, (), left),             // Reached the end.
+          (HaveZero, RightEndMarker) -> (MatchZero, RightEndMarker, left), // ...
+          (HaveOne, ())              -> (MatchOne, (), left),              // ...
+          (HaveOne, RightEndMarker)  -> (MatchOne, RightEndMarker, left),  // ...
+          (MatchZero, Zero)          -> (Back, (), left),                  // Verify last character matches first character.
+          (MatchZero, One)           -> (Reject, One, hold),               // ...
+          (MatchZero, ())            -> (Accept, (), hold),                // ...
+          (MatchOne, One)            -> (Back, (), left),                  // ...
+          (MatchOne, Zero)           -> (Reject, Zero, hold),              // ...
+          (MatchOne, ())             -> (Accept, (), hold),                // ...
+          (Back, Zero)               -> (Back, Zero, left),                // Go back to start.
+          (Back, One)                -> (Back, One, left),                 // ...
+          (Back, ())                 -> (Start, (), right)                 // ...
         )
       )
 
@@ -205,6 +207,29 @@ class TuringMachineSpec extends TuringMachineSpecBase {
     } yield base ::: middle.toList ::: base.reverse
 
     val mixedGenerator: Gen[List[Binary]] = Gen.oneOf(validGenerator, Gen.listOf(binaryGenerator))
+  }
+
+  /**
+    * Bach Sequences are a type-1 grammar.
+    *
+    * They can be expressed by:
+    * - Turing Machines
+    *
+    * Examples (requires each symbol to appear same number of times, in any order):
+    * - 10
+    * - 1100
+    * - 1001
+    *
+    * See:
+    * - Pullum, Geoffrey K. (1983). Context-freeness and the computer processing of human languages. Proc. 21st An
+    */
+  object BachSequences {
+    // Approach:
+    // Pick up a symbol
+    // Delete it
+    // Scan list and delete next occurrence of other symbol
+    // If cannot find an occurrence of other symbol, abort
+    // Go back to start and do it again.
   }
 
 }

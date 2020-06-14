@@ -1,7 +1,6 @@
-package autospec.common
+package autospec.common.turing
 
 import autospec.BaseSpec
-import autospec.common.turing.Machine
 import cats.Eq
 import org.scalacheck.Gen
 import org.scalacheck.Prop.forAll
