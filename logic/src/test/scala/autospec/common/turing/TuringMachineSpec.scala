@@ -18,11 +18,6 @@ class TuringMachineSpec extends TuringMachineSpecBase {
 
   "Turing Machines" should {
     "be capable of expressing all grammars" when {
-      // Todo: type-0 grammar (a^n | n is prime)... i.e sequences of a prime length.
-      //  https://stackoverflow.com/questions/10116111/turing-machine-to-accept-strings-of-prime-lengths
-      //  https://math.stackexchange.com/questions/1151132/designing-a-turing-machine-for-primality-check
-      //  https://cs.stackexchange.com/questions/116024/turing-machine-to-return-all-prime-numbers
-
       verifyMachine(
         name    = "Bach sequences (type-1 grammar)",
         machine = BachSequences.machine,
