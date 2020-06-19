@@ -104,11 +104,3 @@ AutoSpec comes with a simple example to get you started:
 
         -   The resulting Turing Machine is then "run backwards" from end to start to generate
             valid input sequences that abide the preconditions of the endpoint.
-
-    -   Iterative Deepening Depth-First Search (IDDFS) is used to traverse the Turing Machines.
-        The set of possible paths through a halting Turing Machine represents a tree with a
-        potentially infinite height: the first level of the tree contains the shortest valid input
-        sequences, and each progressive level represents the next shortest valid sequences after
-        that. Since we'd like the generated inputs to be ordered by length ascending (i.e. so we
-        can use a range of small test inputs) a BFS is desirable. However, due to the potential
-        infinite depth of our trees, the O(c^n) memory complexity is unviable, so IDDFS is used.

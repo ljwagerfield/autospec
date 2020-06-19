@@ -1,7 +1,9 @@
 package autospec.common.turing
 
-import autospec.common.DistinctByKey
+import autospec.common.{CacheUtils, DistinctByKey}
+import autospec.common.turing.TapeSymbol.{LeftEndMarker, RightEndMarker}
 import cats.Eq
+import cats.implicits._
 
 /**
   * Turing Machine (technically a "Linear Bounded Automaton").
@@ -23,21 +25,106 @@ case class Machine[S: Eq, I, O](
   transitions: DistinctByKey[Transition[S, I, O]]
 ) {
 
-  lazy val transitionsFromState: Map[S, List[Transition[S, I, O]]] =
-    transitions.value.values.groupBy(_.current).view.mapValues(_.toList).toMap
+  private lazy val transitionsTo: Map[MachineState[S], ByMovement[S, I, O]] =
+    transitions.value.values.groupBy(_.nextState).view.mapValues { transitionsByState =>
+      def bySymbol(transitions: Iterable[Transition[S, I, O]]): BySymbol[S, I, O] =
+        BySymbol(
+          transitions.groupBy(_.to.leave).view.mapValues(_.toList).toMap,
+          transitions.toList
+        )
+      val transitionsByMovement = transitionsByState.groupBy(_.move)
+      val none                  = transitionsByMovement.getOrElse(None, Nil)
+      val left                  = transitionsByMovement.getOrElse(().asLeft.some, Nil)
+      val right                 = transitionsByMovement.getOrElse(().asRight.some, Nil)
+      ByMovement(
+        none  = bySymbol(none),
+        left  = bySymbol(left),
+        right = bySymbol(right)
+      )
+    }.toMap
 
-  lazy val transitionsToState: Map[MachineState[S], List[Transition[S, I, O]]] =
-    transitions.value.values.groupBy(_.nextState).view.mapValues(_.toList).toMap
+  private val getTransitionsToCached: (
+    (MachineState[S], Option[TapeSymbol[I, O]], Option[TapeSymbol[I, O]], Option[TapeSymbol[I, O]])
+  ) => List[Transition[S, I, O]] = CacheUtils.memoize {
+    case (state, left, head, right) =>
+      getTransitionsTo(
+        state = state,
+        // Intentionally swap left/right here: when a previous transition moves right, it means
+        // it wrote to the left of the future head (i.e. current head) and visa-versa.
+        includeLeftMovements     = !head.contains_(RightEndMarker),
+        includeRightMovements    = !head.contains_(LeftEndMarker),
+        limitLeftMovementWrites  = right,
+        limitRightMovementWrites = left,
+        limitStationaryWrites    = head
+      )
+  }
+
+  def getTransitionsTo(
+    state: MachineState[S],
+    left: Option[TapeSymbol[I, O]],
+    head: Option[TapeSymbol[I, O]],
+    right: Option[TapeSymbol[I, O]]
+  ): List[Transition[S, I, O]] =
+    getTransitionsToCached(state, left, head, right)
+
+  def getTransitionsTo(
+    state: MachineState[S],
+    includeLeftMovements: Boolean,
+    includeRightMovements: Boolean,
+    limitLeftMovementWrites: Option[TapeSymbol[I, O]],
+    limitRightMovementWrites: Option[TapeSymbol[I, O]],
+    limitStationaryWrites: Option[TapeSymbol[I, O]]
+  ): List[Transition[S, I, O]] =
+    transitionsTo.get(state) match {
+      case Some(byMovement) =>
+        getTransitionsBySymbolMaybe(
+          includeRightMovements,
+          limitRightMovementWrites,
+          byMovement.right
+        ) ::: getTransitionsBySymbolMaybe(
+          includeLeftMovements,
+          limitLeftMovementWrites,
+          byMovement.left
+        ) ::: getTransitionsBySymbol(limitStationaryWrites, byMovement.none)
+      case None => Nil
+    }
+
+  private def getTransitionsBySymbolMaybe(
+    include: Boolean,
+    limit: Option[TapeSymbol[I, O]],
+    bySymbol: BySymbol[S, I, O]
+  ): List[Transition[S, I, O]] =
+    if (include)
+      getTransitionsBySymbol(limit, bySymbol)
+    else
+      Nil
+
+  private def getTransitionsBySymbol(
+    limit: Option[TapeSymbol[I, O]],
+    bySymbol: BySymbol[S, I, O]
+  ): List[Transition[S, I, O]] =
+    limit.fold(bySymbol.all)(bySymbol.grouped.getOrElse(_, Nil))
 
   def parse(input: List[I]): Boolean =
     MachineConfiguration
       .forParsing(machine = this, input = input)
-      .parseToEnd
+      .parse
       .accepted
 
-  def generate: LazyList[List[I]] =
+  def generate(maxSequenceLength: Int): LazyList[List[I]] =
     MachineConfiguration
       .forGenerating(machine = this)
-      .generateToEnd
+      .generate(maxSequenceLength)
 
 }
+
+case class ByMovement[S, I, O](
+  none: BySymbol[S, I, O],
+  left: BySymbol[S, I, O],
+  right: BySymbol[S, I, O]
+)
+
+case class BySymbol[S, I, O](
+  grouped: Map[TapeSymbol[I, O], List[Transition[S, I, O]]],
+  all: List[Transition[S, I, O]]
+)

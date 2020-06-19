@@ -26,7 +26,11 @@ object MachineState {
 
   }
 
-  case object Accept                        extends TerminalState
-  case object Reject                        extends TerminalState
-  case class NonTerminalState[+S](value: S) extends MachineState[S]
+  case object Accept extends TerminalState
+  case object Reject extends TerminalState
+
+  case class NonTerminalState[+S](value: S) extends MachineState[S] {
+    override def hashCode(): Int = value.hashCode()
+  }
+
 }

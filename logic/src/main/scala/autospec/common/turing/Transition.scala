@@ -5,14 +5,14 @@ import autospec.common.turing.MachineState.NonTerminalState
 import autospec.common.turing.TapeSymbol.{IOSymbol, LeftEndMarker, Output, RightEndMarker}
 
 sealed trait Transition[+S, +I, +O] extends Product {
-  def from: TransitionFrom[S, I, O] = TransitionFrom(current, read)
-  def to: TransitionTo[S, I, O]     = TransitionTo(write.map(Output.apply).getOrElse(read), move, nextState)
   def current: S
   def read: TapeSymbol[I, O]
   def write: Option[O]
   def move: Option[Either[Unit, Unit]]
   def changeState: Option[MachineState[S]]
-  def nextState: MachineState[S] = changeState.getOrElse(NonTerminalState(current))
+  val nextState: MachineState[S]    = changeState.getOrElse(NonTerminalState(current))
+  val from: TransitionFrom[S, I, O] = TransitionFrom(current, read)
+  val to: TransitionTo[S, I, O]     = TransitionTo(write.map(Output.apply).getOrElse(read), move, nextState)
 }
 
 object Transition {

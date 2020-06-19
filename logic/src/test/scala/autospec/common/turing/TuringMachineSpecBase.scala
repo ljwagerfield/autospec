@@ -13,7 +13,7 @@ abstract class TuringMachineSpecBase extends BaseSpec with Checkers {
   val abcCardinality                   = 3
   val abcGenerator: Gen[ABC]           = Gen.oneOf(A, B, C)
   val binaryGenerator: Gen[Binary]     = Gen.oneOf(Zero, One)
-  val maxSequenceSize                  = 15
+  val maxSequenceSize                  = 9
 
   sealed trait Binary extends Product {
     def flip: Binary
@@ -39,7 +39,7 @@ abstract class TuringMachineSpecBase extends BaseSpec with Checkers {
     }
 
     s"generating $name" in {
-      val validSequences = machine.generate.takeWhile(_.length <= maxSequenceSize).toList
+      val validSequences = machine.generate(maxSequenceSize).toList
 
       check(forAll(input.filter(_.size <= maxSequenceSize)) { s =>
         val expected = function(s)
