@@ -108,7 +108,8 @@ object RestApiSchema {
         Nil,
         List(
           Predicate.Not(
-            Predicate.Contains( // Todo: Create a ContainsKey to make this easier
+            // Todo: Create a ContainsKey to make this easier
+            Predicate.Contains(
               Map(
                 Endpoint(EndpointId("list"), SMap.empty, evaluateAfterExecution = true),
                 ValueAt(
