@@ -57,8 +57,7 @@ AutoSpec comes with a simple example to get you started:
     You will see a flurry of requests, as AutoSpec indefinitely crawls the embedded REST API
     to find errors.
 
-4.  Try introducing a bug in [`autospec.demo.RestApi`](demo/src/main/scala/autospec/demo/RestApi
-.scala)!
+4.  Try introducing a bug in [`autospec.demo.RestApi`](demo/src/main/scala/autospec/demo/RestApi.scala)!
 
 ## Notes
 
