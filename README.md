@@ -36,7 +36,7 @@ This behaviour causes AutoSpec to statistically favour a happy path -- i.e. a pa
 user to follow -- but will occasionally take detours just as a normal API user would do, in order
 to find edge-cases.
 
-# Getting started
+## Getting started
 
 AutoSpec comes with a simple example to get you started:
 
@@ -60,7 +60,7 @@ AutoSpec comes with a simple example to get you started:
 4.  Try introducing a bug in [`autospec.demo.RestApi`](demo/src/main/scala/autospec/demo/RestApi
 .scala)!
 
-# Notes
+## Notes
 
 -   Endpoints are either "mutating" or "pure":
 
