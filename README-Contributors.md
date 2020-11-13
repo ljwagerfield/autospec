@@ -28,42 +28,47 @@ version, Java Version and Scala Version synced between the `build.sbt` and the G
 
 ## Code style
 
-### Error handling
+### Error Handling
 
-> TL;DR: return `EitherT` if a caller up the stack branches on the `Left`, or a failed monad if not.
+-   Exceptions: we `throw` when the calling code cannot recover from the failure in a "non-generic way" (†) _and_ there's no specific error message to return to the end-user.
 
-Please follow this convention for error handling:
+-   Errors: we return `Left` when the calling code can recover from the failure in a "non-generic way" (†) _or_ there's a specific message we want to return to the end-user.
 
-1.   Use `EitherT` when the caller can handle the error (i.e. is able to logically branch and
-     perform some alternative action).
+(†) "non-generic way" means handling the error in a way that isn't simply `.recover { case NonFatal(e) => ... generic recovery ... }`
 
-2.   Use `MonadError` when the caller does not know how to handle the error.
+#### Why use both approaches?
 
-3.   If you consume an `EitherT` but neither you nor your caller will be branching on the error,
-     convert the error to a `MonadError` and return an `F`.
+Many developers believe `Left` replaces `throw`, but to get the most value out of `Left`, you
+should really `throw` your unhandleable errors. Here's why:
 
-     This flags "we encountered an error at this point (stack trace) that we are unable to handle".
-     This typically indicates a bug in the code that needs fixing (hint: the fix is not to just
-     bubble the error up to the caller by returning an `EitherT` instead... unless the caller can
-     handle it!).
+-   Durable code already handles exceptions (i.e. all well-written servers will translate an
+    unhandled `Exception` to a `500`). So whether you're a `Left` zealot or not, you will still
+    be handling / supporting exceptions at the root of your application, and also in the parts where
+    a cleanup must occur on error (e.g. closing a database connection).
 
-Advantages (v.s. propagating `EitherT` across the codebase):
+-   Thus, we agree that well-written code must be prepared for the possibility of a generic
+    exception both at the root of the application, and anywhere that cleanup must occur.
 
--   Simpler method signatures.
+-   So, let's use `throw` for unhandleable errors.
 
--   More precise `A` types on `EitherT`.
+-   Then, if `Either[L, _]` is left for handle-able errors only:
 
--   More obvious to the caller when they should be handling errors (because the default stance isn't
-    "just bubble it up" but is instead "stop and think about this error").
+    -   We alleviate the `BaseError` problem (as we're bubbling unhandleable errors invisibly now).
 
--   `MonadError` is already a great way of bubbling un-handle-able errors.
+    -   Forces you to think whether a `Left` from a sub-call should be bubbled (i.e. is handleable by your caller) or whether it
+        is unexpected in this context, in which case a bug has occured, in which case you should convert to an `Exception` and throw.
 
--   The original mantra behind 'errors in types' was about forcing you to think about the errors
-    returned by a function, but if the error is `BaseError` then it could have come from the
-    function you're calling, or from 4 levels deep, by which point you're back to square one of
-    knowing nothing about the error again: you're not much better off than using exceptions. So
-    please, try and use `EitherT` only when a caller actually performs some conditional logic
-    based on that error, and if not, stick it into `MonadError` instead!
+    -   `Either[L, _]` becomes more descriptive about the preconditions of the method.
+
+#### No `BaseError` types
+
+-   We do not include a `BaseError` type in the codebase.
+
+-   Common error functionality (like HTTP status codes, etc.) are handled through type classes instead, rather than extending a common error type.
+
+-   This prevents the lowest common denominator error problem: a dangerous anti-pattern that encourages methods to bubble-up `BaseError` types without stopping to think about why they are occurring. This often results in methods like `def deleteUser(id: UserId)` returning nonsensical left-values like `PaymentExpired`, which are hard to track down, and may represent bugs that should be `thrown` instead (see above).
+
+    -   Yes: this does come at the cost of writing more error types!
 
 ### Testing
 

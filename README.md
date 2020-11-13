@@ -2,7 +2,9 @@
 
 # AutoSpec
 
-Test Framework for REST APIs where you write "rules" instead of "tests".
+Property-based testing for REST APIs.
+
+Allows you to write "rules" instead of "tests".
 
 **Benefits:**
 
@@ -14,11 +16,25 @@ Test Framework for REST APIs where you write "rules" instead of "tests".
 
 ## How it works
 
-1.  Create a specification file for your REST API (we have [SDKs](#todo)).
+1.  Create a specification file for your REST API.
 
-2.  Run the AutoSpec docker image and pass in your specification file (we have [build tool plugins](#todo)).
+2.  Run the AutoSpec.
 
-3.  AutoSpec crawls your API and flags any bugs.
+3.  AutoSpec traverses your API, calling your endpoints in all their possible sequences, and flags
+    any bugs it detects.
+
+## AutoSpec is not just a fuzzer!
+
+AutoSpec analyses the pre/post conditions on your API endpoints, and knows which API endpoints
+are related, how they're related, and therefore what order to call them in.
+
+In choosing endpoints to call, AutoSpec applies a greater weight to endpoints that haven't recently
+been available (i.e. their preconditions haven't been met), as this implies these endpoints are
+part of a deep workflow, so should be given priority.
+
+This behaviour causes AutoSpec to statistically favour a happy path -- i.e. a path you'd expect a
+user to follow -- but will occasionally take detours just as a normal API user would do, in order
+to find edge-cases.
 
 ## Getting started with the examples
 
@@ -32,17 +48,17 @@ AutoSpec comes with a simple example to get you started:
 
     [`autospec.demo.RestApiSchema`](demo/src/main/scala/autospec/demo/RestApiSchema.scala)
 
-3.  Run a hardcoded test path:
-
-    ```
-    sbt 'demo/runMain autospec.demo.RunTestPlan'
-    ```
-
-4.  Run the crawler:
+3.  Run the crawler:
 
     ```
     sbt 'demo/runMain autospec.demo.RunGenerator'
     ```
+
+    You will see a flurry of requests, as AutoSpec indefinitely crawls the embedded REST API
+    to find errors.
+
+4.  Try introducing a bug in [`autospec.demo.RestApi`](demo/src/main/scala/autospec/demo/RestApi
+.scala)!
 
 ## Technical points of interest
 
