@@ -21,7 +21,7 @@ Benefits:
 3.  Run AutoSpec, passing it your specification file.
 
 AutoSpec will traverse your API, calling its endpoints in all their possible sequences, and will
-flag the bugs that it detects.
+flag any bugs that it detects!
 
 ## AutoSpec is not just a fuzzer!
 
