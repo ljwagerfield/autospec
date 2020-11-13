@@ -16,7 +16,7 @@ Benefits:
 
 1.  Create a specification file for your REST API.
 
-2.  Run the AutoSpec.
+2.  Run AutoSpec.
 
 3.  AutoSpec traverses your API, calling your endpoints in all their possible sequences, and flags
     any bugs it detects.
