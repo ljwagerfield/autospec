@@ -2,17 +2,15 @@
 
 # AutoSpec
 
-Property-based testing for REST APIs.
+**Property-based acceptance testing for REST APIs.**
 
-Allows you to write "rules" instead of "tests".
+Benefits:
 
-**Benefits:**
+-   Properties are faster to write than tests.
 
--   Rules are faster to write than tests.
+-   Properties provide greater test coverage (as the framework exhausts test paths for you).
 
--   Rules provide greater test coverage (as the framework exhausts test paths for you).
-
--   Rules make refactoring easier (change one rule instead of many tests).
+-   Properties make refactoring easier (change one property instead of many tests).
 
 ## How it works
 
