@@ -16,10 +16,12 @@ Benefits:
 
 1.  Create a specification file for your REST API.
 
-2.  Run AutoSpec.
+2.  Run your REST API. 
 
-3.  AutoSpec traverses your API, calling your endpoints in all their possible sequences, and flags
-    any bugs it detects.
+3.  Run AutoSpec, passing it your specification file.
+
+AutoSpec will traverse your API, calling its endpoints in all their possible sequences, and will
+flag the bugs that it detects.
 
 ## AutoSpec is not just a fuzzer!
 
